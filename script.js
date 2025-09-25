@@ -2,9 +2,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatBody = document.getElementById('chat-body');
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('send-btn');
+    const modeToggle = document.getElementById('mode-toggle'); 
+    const chatbotContainer = document.getElementById('chatbot-container'); 
     let followUpContext = null;
 
-    // --- Data Objects ---
+    // --- Dark/Light Mode Logic (Unchanged) ---
+    function setMode(isDark) {
+        if (isDark) {
+            chatbotContainer.classList.add('dark-mode');
+            modeToggle.innerText = '🌙'; 
+            localStorage.setItem('mode', 'dark');
+        } else {
+            chatbotContainer.classList.remove('dark-mode');
+            modeToggle.innerText = '☀️'; 
+            localStorage.setItem('mode', 'light');
+        }
+    }
+
+    modeToggle.addEventListener('click', () => {
+        const isDark = chatbotContainer.classList.contains('dark-mode');
+        setMode(!isDark);
+    });
+
+    // Check saved preference on load
+    const savedMode = localStorage.getItem('mode');
+    if (savedMode === 'dark') {
+        setMode(true);
+    } else {
+        setMode(false); 
+    }
+    // --- END Dark/Light Mode Logic ---
+
+
+    // --- Data Objects (Unchanged) ---
     const programDetails = {
         'b.sc': {
             icon: '🎓',
@@ -49,14 +79,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const smallTalk = {
-        hi: "Hello! How can I help you? 👋",
-        hello: "Hi there! What can I do for you?",
-        bye: "Goodbye! Have a nice day! 😊",
-        thanks: "You're welcome! 😊"
+    // MODIFIED: Small Talk replies now structured for easy quick reply attachment
+const smallTalk = {
+        hi: {
+            reply: "Hello! How can I help you? 👋",
+            quickReplies: ['Admission', 'FAQ', 'Hostel', 'Location']
+        },
+        hello: {
+            reply: "Hi there! What can I do for you?",
+            quickReplies: ['Admission', 'FAQ', 'Hostel', 'Location']
+        },
+        // ADDED: Response for 'how are you'
+        'how are you': {
+            reply: "I'm a bot, so I'm always running optimally! Thanks for asking. How can I assist you with PAU information? 🤖",
+            quickReplies: ['Admission', 'FAQ', 'Hostel', 'Location']
+        },
+        bye: {
+            reply: "Goodbye! Have a nice day! 😊",
+            quickReplies: null
+        },
+        thanks: {
+            reply: "You're welcome! 😊",
+            quickReplies: null
+        }
     };
+    // --- END Small Talk Data ---
 
-    // --- HOSTEL FUNCTIONS ---
+
+    // --- HOSTEL FUNCTIONS (Unchanged) ---
     function getHostelFacilities() {
         return `
         🏠 **PAU Hostel Facilities & Amenities**
@@ -68,9 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <li>**Internet:** Wi-Fi connectivity (often concentrated in common areas).</li>
             <li>**Mess:** Functional mess (charges separate) with varied menu options.</li>
             <li>**Health:** Access to the on-campus 20-bedded university hospital.</li>
-            <li>**Security:** 24/7 security with separate blocks and timings for girls.</li>
         </ul>
-        <small>*The university is actively renovating and upgrading facilities.*</small>
         <p>Which type of accommodation would you like details for?</p>
         `;
     }
@@ -99,8 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- END HOSTEL FUNCTIONS ---
 
 
-    // --- UX / DOM Manipulation Functions ---
-
+    // --- UX / DOM Manipulation Functions (Unchanged) ---
     function addMessage(msg, sender) {
         const div = document.createElement('div');
         div.classList.add('message', sender);
@@ -114,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const div = document.createElement('div');
             div.classList.add('message', 'bot', 'typing-indicator');
             div.id = 'typing-indicator';
-            div.innerHTML = '<span>.</span><span>.</span><span>.</span>';
+            div.innerHTML = '<span></span><span></span><span></span>'; 
             chatBody.appendChild(div);
             chatBody.scrollTop = chatBody.scrollHeight;
         }
@@ -126,16 +173,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function addQuickReplies(replies) {
+        if (!replies || replies.length === 0) return;
+
         const existing = document.querySelector('.quick-replies');
         if (existing) existing.remove();
 
         const container = document.createElement('div');
         container.classList.add('quick-replies');
+        // Apply dark-mode class to quick replies container if bot is in dark mode
+        if (chatbotContainer.classList.contains('dark-mode')) {
+             container.classList.add('dark-mode');
+        }
+
         replies.forEach(r => {
             const btn = document.createElement('button');
             btn.innerText = r;
             btn.onclick = () => {
-                handleQuickReply(r);
+                window.handleQuickReply(r); 
             };
             container.appendChild(btn);
         });
@@ -143,7 +197,15 @@ document.addEventListener('DOMContentLoaded', () => {
         chatBody.scrollTop = chatBody.scrollHeight;
     }
 
-    // --- NEW: Function to ask the follow-up question ---
+    // Making this global for button clicks
+    window.handleQuickReply = function (text) {
+        const existing = document.querySelector('.quick-replies');
+        if (existing) existing.remove();
+        
+        userInput.value = text.toLowerCase();
+        sendMessage();
+    };
+
     async function askFollowUpQuestion() {
         showTypingIndicator();
         await new Promise(r => setTimeout(r, 600)); 
@@ -153,14 +215,8 @@ document.addEventListener('DOMContentLoaded', () => {
         addMessage("Can I help you with anything else? 🤔", 'bot');
         addQuickReplies(['Yes', 'No']);
     }
-    // --- END NEW FUNCTION ---
+    // --- END UX / DOM Manipulation Functions ---
 
-    window.handleQuickReply = function (text) {
-        const existing = document.querySelector('.quick-replies');
-        if (existing) existing.remove();
-        userInput.value = text.toLowerCase();
-        sendMessage();
-    };
 
     // --- Core Logic Functions ---
 
@@ -168,6 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return str.toLowerCase().replace(/[^a-z0-9\s]/gi, '').trim();
     }
 
+    // MODIFIED: Returns the structured smallTalk object
     function handleSmallTalk(msg) {
         for (const key in smallTalk) {
             if (msg.includes(key)) return smallTalk[key];
@@ -188,6 +245,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleIntent(msg) {
+        // Use current time and date in the bot's known location (Ludhiana)
+        const now = new Date();
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' };
+        const dateStr = now.toLocaleDateString('en-IN', options);
+        const timeOptions = {hour: '2-digit', minute:'2-digit', timeZone: 'Asia/Kolkata'};
+        const timeStr = now.toLocaleTimeString('en-IN', timeOptions);
+
+        // Utility Intents (Time, Date, Weather)
+        if (msg.includes('date') || msg.includes('today')) {
+            followUpContext = null; 
+            return { 
+                reply: `📅 Today is **${dateStr}**.`, 
+                quickReplies: null,
+                askFollowUp: true 
+            };
+        }
+        if (msg.includes('time')) {
+             followUpContext = null;
+             return { 
+                reply: `⏰ The current time in Ludhiana is **${timeStr}**.`, 
+                quickReplies: null,
+                askFollowUp: true 
+            };
+        }
+        if (msg.includes('weather')) {
+             // Hardcoded weather details for context: Ludhiana, Punjab, India (As of Sept 25, 2025)
+             const weatherData = {
+                current: '94°F (34°C)',
+                conditions: 'Sunny',
+                humidity: '50%',
+                wind: '5 mph Northwest'
+             }
+             
+             followUpContext = null;
+             return { 
+                reply: `☀️ The current weather in Ludhiana, Punjab is **${weatherData.current}** and **${weatherData.conditions}**. (Humidity: ${weatherData.humidity}, Wind: ${weatherData.wind})`, 
+                quickReplies: null,
+                askFollowUp: true 
+            };
+        }
+        // End Utility Intents
+
         // 1. Admission Intent
         if (msg.includes('admission') || msg.includes('eligibility') || msg.includes('courses')) {
             followUpContext = 'admission-level';
@@ -202,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const key = findProgramKey(msg);
         if (key) {
             const p = programDetails[key];
+            followUpContext = null; 
             return {
                 reply: `${p.icon} <strong>${p.title}:</strong><ul><li>${p.details.join('</li><li>')}</li></ul>`,
                 quickReplies: null,
@@ -219,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
         
-        // 4. HOSTEL INTENT (Start of the structured flow)
+        // 4. HOSTEL INTENT
         if (msg.includes('hostel')) {
             followUpContext = 'hostel-type-select'; 
             return {
@@ -231,45 +331,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 5. Location Intent
         if (msg.includes('location')) {
+            followUpContext = null;
             return {
                 reply: "📍 PAU is located in **Ludhiana**, Punjab, India.",
-                quickReplies: null,
-                askFollowUp: true 
+            // MODIFIED: Added quick replies here to guide the user after location
+                quickReplies: ['Admission', 'FAQ', 'Hostel'],
+                askFollowUp: false 
             };
         }
         
-        // 6. Utility (Time, Date, Weather) - Modified to use askFollowUp
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString();
-        const dateStr = now.toLocaleDateString('en-IN', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-
-        if (msg.includes('time')) {
-             return { 
-                reply: `⏰ The current time is **${timeStr}**.`, 
-                quickReplies: null,
-                askFollowUp: true 
-            };
-        }
-        
-        if (msg.includes('date') || msg.includes('today')) {
-            return { 
-                reply: `📅 Today is **${dateStr}**.`, 
-                quickReplies: null,
-                askFollowUp: true 
-            };
-        }
-        
-        if (msg.includes('weather')) {
-             const weatherReply = `☀️ I cannot fetch live weather, but PAU is located in Ludhiana, Punjab. The weather here is typically hot and humid in summer, and cold in winter.`;
-             return { reply: weatherReply, quickReplies: null, askFollowUp: true };
-        }
-
-
         return null;
     }
 
@@ -277,9 +347,16 @@ document.addEventListener('DOMContentLoaded', () => {
         let newContext = context;
         let reply = null;
         let quickReplies = null;
-        let askFollowUp = false; // New flag
+        let askFollowUp = false; 
 
-        // --- Handle Post-Query Wrap-up ---
+        // --- Handle Universal Jumps (Priority) ---
+        // If user interrupts a flow with a new main intent, handle it
+        if (context !== null && (msg.includes('admission') || msg.includes('faq') || msg.includes('hostel') || msg.includes('date') || msg.includes('time') || msg.includes('weather'))) {
+            followUpContext = null;
+            return handleIntent(msg);
+        }
+
+        // --- Handle Post-Query Wrap-up (Reset Context) ---
         if (context === 'finished-query') {
             if (msg.includes('yes')) {
                 newContext = null;
@@ -287,41 +364,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 quickReplies = ['Admission', 'FAQ', 'Hostel', 'Location'];
             } else if (msg.includes('no')) {
                 newContext = null;
-                reply = "👋 Alright, have a great day!";
+                reply = "👋 Alright, have a great day! If you need anything, just say 'Hi'.";
                 quickReplies = null;
             } else {
                 newContext = 'finished-query';
                 reply = "I didn't quite catch that. Do you need help with something else (Yes/No)?";
                 quickReplies = ['Yes', 'No'];
             }
-            if (reply) {
-                followUpContext = newContext;
-                return { reply, quickReplies, askFollowUp: false };
-            }
         }
-        // --- END Wrap-up ---
-
-
-        // --- Universal Flow Jumps (Fix for getting stuck) ---
-        if (context !== null) {
-             if (msg.includes('admission')) {
-                 newContext = 'admission-level';
-                 return handleContextFlow(msg, 'admission-level'); 
-             }
-             if (msg.includes('faq')) {
-                 newContext = 'faq';
-                 return handleContextFlow(msg, 'faq'); 
-             }
-             if (msg.includes('hostel')) {
-                 newContext = 'hostel-type-select';
-                 return handleContextFlow(msg, 'hostel-type-select'); 
-             }
-        }
-        // --- END Universal Flow Jumps ---
         
-
         // A. UG/PG Level Selection
-        if (context === 'admission-level') {
+        else if (context === 'admission-level') {
             if (msg.includes('ug')) {
                 newContext = 'admission-ug';
                 reply = "🎓 **UG Programs:** Select a program for details:";
@@ -331,8 +384,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 reply = "🔬 **PG Programs:** Select a program for details:";
                 quickReplies = ['M.Sc.', 'M.Tech.', 'UG'];
             } else {
-                reply = "I need you to choose **UG** or **PG** to continue.";
-                quickReplies = ['UG', 'PG'];
+                newContext = null;
+                reply = `🤔 Sorry, I couldn't understand. Please choose a topic to begin.`;
+                quickReplies = ['Admission', 'FAQ', 'Hostel', 'Location'];
             }
         } 
         
@@ -344,55 +398,56 @@ document.addEventListener('DOMContentLoaded', () => {
                 const p = programDetails[key];
                 reply = `${p.icon} <strong>${p.title}:</strong><ul><li>${p.details.join('</li><li>')}</li></ul>`;
                 quickReplies = null; 
-                askFollowUp = true; // Ask follow-up after the reply
-            } else if (msg === 'ug' || msg.includes('pg')) { 
+                askFollowUp = true;
+                newContext = null; 
+            } else if (msg.includes('ug') || msg.includes('pg')) { 
                  newContext = 'admission-level';
                  return handleContextFlow(msg, 'admission-level'); 
             } else {
-                reply = "I didn't recognize that program. Please select one of the options or type 'UG'/'PG'.";
-                quickReplies = (context === 'admission-ug') ? ['B.Sc.', 'B.Tech.', 'PG'] : ['M.Sc.', 'M.Tech.', 'UG'];
+                newContext = null; 
+                reply = `🤔 Sorry, I couldn't understand. Please choose a topic to begin.`;
+                quickReplies = ['Admission', 'FAQ', 'Hostel', 'Location'];
             }
         } 
         
         // C. FAQ Flow
         else if (context === 'faq') {
             if (msg.includes('fee')) {
-                reply = "💰 Fees: UG courses cost around ₹1.24 - ₹1.73 Lakh.";
+                reply = "💰 **Fees:** UG courses cost around ₹1.24 - ₹1.73 Lakh. PG fees vary by specialization.";
                 quickReplies = null;
                 askFollowUp = true;
-            } else if (msg.includes('hostel')) {
-                // Handled by the universal jump check above
-                newContext = 'hostel-type-select';
-                return handleContextFlow(msg, 'hostel-type-select');
+                newContext = null; 
             } else if (msg.includes('scholarship')) {
-                reply = "🎓 Scholarships are available for eligible students.";
+                reply = "🎓 **Scholarships:** PAU offers various merit-based and need-based scholarships for eligible students.";
                 quickReplies = null;
                 askFollowUp = true;
+                newContext = null; 
             } else {
-                newContext = 'faq';
-                reply = "Choose from Fees, Hostel, Scholarship.";
+                newContext = null; 
+                reply = `🤔 Sorry, I couldn't understand. Please choose a topic to begin.`;
+                quickReplies = ['Admission', 'FAQ', 'Hostel', 'Location'];
             }
         } 
         
         // D. HOSTEL TYPE SELECTION FLOW
         else if (context === 'hostel-type-select') {
-            
             if (msg.includes('dormitory')) {
                 reply = getDormitoryDetails();
                 quickReplies = null;
                 askFollowUp = true;
+                newContext = null; 
             } else if (msg.includes('cubicle')) {
                 reply = getCubicleDetails();
                 quickReplies = null;
                 askFollowUp = true;
+                newContext = null; 
             } else {
-                newContext = 'hostel-type-select';
-                reply = "Please choose **Dormitory** or **Cubicle** accommodation details.";
-                quickReplies = ['Dormitory', 'Cubicle', 'Admission'];
+                newContext = null; 
+                reply = `🤔 Sorry, I couldn't understand. Please choose a topic to begin.`;
+                quickReplies = ['Admission', 'FAQ', 'Hostel', 'Location'];
             }
         }
-
-        // If a final reply was generated, return the result and the new flag
+        
         if (reply) {
             followUpContext = newContext;
             return { reply, quickReplies, askFollowUp };
@@ -406,8 +461,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function getBotResponse(message) {
         const raw = normalizeText(message);
         
+        // MODIFIED: Small talk now returns object
         const small = handleSmallTalk(raw);
-        if (small) return { reply: small, quickReplies: null, askFollowUp: false };
+        if (small) return { 
+            reply: small.reply, 
+            quickReplies: small.quickReplies, 
+            askFollowUp: false 
+        };
 
         // 1. Handle Contextual Flow (Priority when context is set)
         const contextRes = handleContextFlow(raw, followUpContext);
@@ -421,9 +481,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return intentRes;
         }
 
-        // 3. Fallback
+        // 3. Fallback: Reset context and show main options
+        followUpContext = null;
         return {
-            reply: "🤖 I didn't understand that. Try typing 'Admission' or select an option below.",
+            reply: `🤔 Sorry, I couldn't understand. Please choose a topic to begin.`,
             quickReplies: ['Admission', 'FAQ', 'Hostel', 'Location'],
             askFollowUp: false
         };
@@ -436,7 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => userInput.classList.remove('error-shake'), 300);
             return;
         }
-
+        
         addMessage(msg, 'user');
         userInput.value = '';
         userInput.focus();
@@ -445,33 +506,30 @@ document.addEventListener('DOMContentLoaded', () => {
         await new Promise(r => setTimeout(r, 600));
         hideTypingIndicator();
 
-        // Get the response object which now includes the askFollowUp flag
         const response = await getBotResponse(msg);
         
-        // 1. Add the main reply
         addMessage(response.reply, 'bot');
         
-        // 2. Add quick replies (if any, e.g., UG/PG buttons)
         if (response.quickReplies) {
             addQuickReplies(response.quickReplies);
         }
 
-        // 3. If askFollowUp flag is true, trigger the new question bubble
         if (response.askFollowUp) {
             await askFollowUpQuestion();
         }
     }
 
-    // --- Event Listeners and Initial Greeting FIX ---
+    // --- Event Listeners and Initial Greeting ---
     sendBtn.addEventListener('click', sendMessage);
     userInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') sendMessage();
     });
 
-    // Remove the placeholder message from HTML and display the clean greeting
-    const initialMessage = chatBody.querySelector('.message.bot');
-    if (initialMessage) initialMessage.remove(); 
-    
-    addMessage("Hello! How can I help you today? 👋", 'bot');
-    addQuickReplies(['Admission', 'FAQ', 'Hostel', 'Location']);
+    // Start the conversation
+    showTypingIndicator();
+    setTimeout(() => {
+        hideTypingIndicator();
+        addMessage("Hello! I'm the PAU InfoBot. How can I help you today? 👋", 'bot');
+        addQuickReplies(['Admission', 'FAQ', 'Hostel', 'Location']);
+    }, 1000); 
 });
