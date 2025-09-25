@@ -311,3 +311,33 @@ body {
 .dark-mode #mode-toggle {
     color: #d1b54a;
 }
+/* Add this to your style.css */
+.feedback-buttons {
+    text-align: right;
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+.feedback-buttons button {
+    background: none;
+    border: 1px solid #ccc;
+    padding: 5px 10px;
+    margin-left: 5px;
+    cursor: pointer;
+    border-radius: 15px;
+    font-size: 0.8em;
+    transition: background-color 0.2s;
+}
+
+.feedback-buttons button:hover {
+    background-color: #f0f0f0;
+}
+
+/* Dark Mode adjustment for feedback buttons */
+.chatbot-container.dark-mode .feedback-buttons button {
+    border-color: #555;
+    color: #fff;
+}
+.chatbot-container.dark-mode .feedback-buttons button:hover {
+    background-color: #333;
+}
