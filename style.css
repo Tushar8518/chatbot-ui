@@ -1,27 +1,38 @@
+/* GLOBAL RESET AND RESPONSIVENESS BASE */
+* { 
+    box-sizing: border-box; /* Crucial for responsiveness */
+}
+
 body {
     font-family: Arial, sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    min-height: 100vh;
+    margin: 0;
+    padding: 10px; /* Base padding for responsiveness */
     background: #f5f5f5;
 }
 
 .chatbot-container {
-    width: 350px;
-    height: 500px;
+    width: 90%; /* Responsive width */
+    max-width: 450px; /* Maximum width for desktop screens */
+    height: 90vh; /* Responsive height */
+    max-height: 600px; /* Maximum height */
     background: #6a5af9;
     border-radius: 25px;
     display: flex;
     flex-direction: column;
     box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    overflow: hidden; 
 }
 
+/* Header Styling */
 .chat-header {
     display: flex;
     align-items: center;
     padding: 15px;
-    background: #5847e3;
+    background: #5847e3; 
     border-top-left-radius: 25px;
     border-top-right-radius: 25px;
     color: white;
@@ -29,35 +40,63 @@ body {
 
 .bot-avatar {
     width: 40px;
+    height: 40px; 
     margin-right: 10px;
+    border-radius: 50%;
+    background: white;
+    max-width: 100%; /* Image responsiveness */
+    height: auto;
 }
 
+/* Chat Body (Message Area) */
 .chat-body {
     flex: 1;
     padding: 15px;
     overflow-y: auto;
-    background: #7c63f9;
-    border-radius: 0 0 0 0;
+    background: #7c63f9; 
+    display: flex;
+    flex-direction: column;
+    gap: 10px; 
 }
 
+/* Message Styling */
 .message {
-    background: #fff;
-    color: #000;
     padding: 10px 15px;
     border-radius: 20px;
-    margin-bottom: 10px;
     max-width: 80%;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    line-height: 1.4; 
 }
 
-.user {
+/* User Messages */
+.message.user {
     align-self: flex-end;
-    background: #ffe600;
+    background: #ffe600; 
+    color: #000;
+    border-bottom-right-radius: 4px; 
 }
 
-.bot {
+/* Bot Messages */
+.message.bot {
     align-self: flex-start;
+    background: #fff; 
+    color: #000;
+    border-bottom-left-radius: 4px;
 }
 
+.message.bot strong {
+    color: #5847e3; 
+}
+.message.bot ul, .message.bot ol, .message.bot p {
+    margin: 5px 0 0 0;
+    padding-left: 20px;
+    list-style-position: inside; 
+}
+.message.bot li {
+    margin-left: 5px;
+}
+
+/* Footer (Input Area) */
 .chat-footer {
     display: flex;
     padding: 10px;
@@ -67,18 +106,117 @@ body {
 }
 
 #user-input {
-    flex: 1;
+    flex: 1; /* Input takes up max available space */
     padding: 10px;
     border-radius: 20px;
     border: none;
     outline: none;
+    font-size: 16px;
 }
 
 #send-btn {
-    margin-left: 10px;
-    padding: 10px 15px;
+    margin-left: 8px; /* Adjusted margin */
+    padding: 10px 12px; /* Adjusted padding */
     border: none;
     border-radius: 20px;
-    background: #ffe600;
+    background: #ffe600; 
     cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+#send-btn:hover {
+    background: #ffdb00; 
+}
+
+/* --- UX ELEMENTS --- */
+
+/* Typing Indicator Style */
+.typing-indicator {
+    padding: 8px 15px !important;
+    background: #e0e0e0 !important;
+    border-radius: 20px;
+    width: fit-content;
+    display: flex;
+    align-items: center;
+}
+
+.typing-indicator span {
+    width: 6px;
+    height: 6px;
+    background-color: #555;
+    border-radius: 50%;
+    margin: 0 2px;
+    animation: bounce 1.2s infinite ease-in-out;
+}
+
+@keyframes bounce {
+    0%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-5px);
+    }
+}
+
+/* Quick Replies Container and Buttons */
+.quick-replies {
+    align-self: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 5px;
+    margin-bottom: 10px; 
+}
+
+.quick-replies button {
+    background: #5847e3; 
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 15px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.quick-replies button:hover {
+    background: #4a38cc;
+}
+
+/* Input Error Shake */
+.error-shake {
+    animation: shake 0.5s;
+    border: 2px solid red !important;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-5px); }
+    40%, 80% { transform: translateX(5px); }
+}
+
+/* --- MEDIA QUERY FOR SMALL SCREENS (Phones) --- */
+@media (max-width: 600px) {
+    
+    /* Center the body content on small screens */
+    body {
+        align-items: flex-start; 
+        padding: 0;
+    }
+
+    /* Make the container full width and height on small phones */
+    .chatbot-container {
+        width: 100%;
+        height: 100vh; 
+        max-width: none; 
+        max-height: none; 
+        border-radius: 0; 
+    }
+
+    /* Ensure footer looks compact */
+    .chat-footer {
+        padding: 8px;
+    }
 }
