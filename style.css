@@ -12,8 +12,11 @@ body {
     margin: 0;
     padding: 10px; /* Base padding for responsiveness */
     background: #f5f5f5;
+    /* ADDED: Transition for smooth mode switch */
+    transition: background-color 0.3s; 
 }
 
+/* --- LIGHT MODE (Default) STYLES --- */
 .chatbot-container {
     width: 90%; /* Responsive width */
     max-width: 450px; /* Maximum width for desktop screens */
@@ -25,6 +28,8 @@ body {
     flex-direction: column;
     box-shadow: 0 10px 20px rgba(0,0,0,0.2);
     overflow: hidden; 
+    /* ADDED: Transition for smooth mode switch */
+    transition: background-color 0.3s;
 }
 
 /* Header Styling */
@@ -36,6 +41,8 @@ body {
     border-top-left-radius: 25px;
     border-top-right-radius: 25px;
     color: white;
+    /* ADDED: For the toggle button positioning */
+    position: relative; 
 }
 
 .bot-avatar {
@@ -132,7 +139,7 @@ body {
 
 /* --- UX ELEMENTS --- */
 
-/* Typing Indicator Style */
+/* Typing Indicator Style (Kept as provided) */
 .typing-indicator {
     padding: 8px 15px !important;
     background: #e0e0e0 !important;
@@ -219,4 +226,88 @@ body {
     .chat-footer {
         padding: 8px;
     }
+}
+
+/* ------------------------------------------------------------------- */
+/* --- ADDED: DARK MODE STYLES (Overrides) --- */
+/* ------------------------------------------------------------------- */
+.dark-mode {
+    background: #282c36; /* Dark container background */
+    color: #e0e0e0;
+}
+
+.dark-mode .chat-header {
+    background: #1e2129; /* Dark header color */
+    color: #fff;
+}
+
+.dark-mode .chat-body {
+    background: #3c4049; /* Dark body background */
+}
+
+.dark-mode .message.user {
+    background: #4a5c9d; /* Dark user bubble color (blue/purple) */
+    color: #fff;
+}
+
+.dark-mode .message.bot {
+    background: #505562; /* Dark bot bubble color (grey) */
+    color: #e0e0e0;
+}
+
+.dark-mode .message.bot strong {
+    color: #d1b54a; /* Dark strong text color (gold) */
+}
+
+.dark-mode .chat-footer {
+    background: #1e2129; /* Dark footer color */
+}
+
+.dark-mode #user-input {
+    background: #3c4049;
+    color: #fff;
+}
+
+.dark-mode #send-btn {
+    background: #d1b54a; /* Dark send button color */
+    color: #000;
+}
+.dark-mode #send-btn:hover {
+    background: #b89d40; 
+}
+
+.dark-mode .quick-replies button {
+    background: #1e2129; 
+    color: #d1b54a;
+    border: 1px solid #d1b54a;
+}
+.dark-mode .quick-replies button:hover {
+    background: #3c4049;
+}
+
+/* --- ADDED FIX: Typing Indicator Dark Mode Override (Must use !important) --- */
+.dark-mode .typing-indicator {
+    /* More specific selector to override the light mode's !important rule */
+    background: #505562 !important; 
+}
+
+.dark-mode .typing-indicator span {
+    /* Ensures dots are visible */
+    background-color: #e0e0e0; 
+}
+
+/* --- ADDED: MODE TOGGLE BUTTON STYLING --- */
+#mode-toggle {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    color: white;
+}
+.dark-mode #mode-toggle {
+    color: #d1b54a;
 }
