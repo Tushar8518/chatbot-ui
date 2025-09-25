@@ -4,9 +4,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendBtn = document.getElementById('send-btn');
     const modeToggle = document.getElementById('mode-toggle'); 
     const chatbotContainer = document.getElementById('chatbot-container'); 
+    const chatFooter = document.querySelector('.chat-footer'); 
     let followUpContext = null;
 
-    // --- Dark/Light Mode Logic (Unchanged) ---
+    // --- Dark/Light Mode Logic ---
     function setMode(isDark) {
         if (isDark) {
             chatbotContainer.classList.add('dark-mode');
@@ -24,7 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setMode(!isDark);
     });
 
-    // Check saved preference on load
     const savedMode = localStorage.getItem('mode');
     if (savedMode === 'dark') {
         setMode(true);
@@ -33,8 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // --- END Dark/Light Mode Logic ---
 
-
-    // --- Data Objects (Unchanged) ---
+    // --- Data Objects ---
     const programDetails = {
         'b.sc': {
             icon: '🎓',
@@ -78,21 +77,43 @@ document.addEventListener('DOMContentLoaded', () => {
             ]
         }
     };
+    
+    const rankingInfo = {
+        title: '🏆 PAU Ranking Highlights (NIRF 2024)',
+        details: [
+            '**NIRF Agriculture & Allied Sector:** Ranked **#4** in India.',
+            '**NIRF Overall University Rank:** Top 100 in India.',
+            '**QS World Ranking:** Globally recognized for Agricultural Research Impact.'
+        ]
+    };
 
-    // MODIFIED: Small Talk replies now structured for easy quick reply attachment
-const smallTalk = {
+    const feesDetails = {
+        reply: "💰 **Approximate Fees:** UG courses cost around **₹1.24 - ₹1.73 Lakh** (total). PG fees vary by specialization. (Please check the official prospectus for exact charges)",
+        quickReplies: null,
+        askFollowUp: true
+    };
+
+    const faqDetails = {
+        reply: "🙋‍♂️ **Frequently Asked Questions (FAQs):**<p>Please select a topic or type your question (e.g., 'hostel rules'):</p>",
+        quickReplies: ['Hostel', 'Location'],
+        askFollowUp: false
+    };
+
+    const smallTalk = {
         hi: {
             reply: "Hello! How can I help you? 👋",
-            quickReplies: ['Admission', 'FAQ', 'Hostel', 'Location']
+            // Both FAQ and Fees added
+            quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location'] 
         },
         hello: {
             reply: "Hi there! What can I do for you?",
-            quickReplies: ['Admission', 'FAQ', 'Hostel', 'Location']
+            // Both FAQ and Fees added
+            quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location'] 
         },
-        // ADDED: Response for 'how are you'
         'how are you': {
             reply: "I'm a bot, so I'm always running optimally! Thanks for asking. How can I assist you with PAU information? 🤖",
-            quickReplies: ['Admission', 'FAQ', 'Hostel', 'Location']
+            // Both FAQ and Fees added
+            quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location'] 
         },
         bye: {
             reply: "Goodbye! Have a nice day! 😊",
@@ -103,10 +124,26 @@ const smallTalk = {
             quickReplies: null
         }
     };
-    // --- END Small Talk Data ---
+    // --- END Data Objects ---
+
+    // --- LOCATION FUNCTION ---
+    function getLocationDetails() {
+        // Detailed address and map link added
+        return {
+            reply: `
+            📍 **PAU Location Details**
+            <p><strong>Address:</strong> Punjab Agricultural University, Ferozepur Road, Ludhiana - 141004, Punjab, India.</p>
+            <p>The campus is located centrally in Ludhiana, right on the Ferozepur Road.</p>
+            <a href="https://maps.app.goo.gl/tH5qH6rM9d6jH6SCA" target="_blank" style="display: inline-block; padding: 8px 12px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin-top: 5px;">🗺️ View Map Location</a>
+            `,
+            quickReplies: null, 
+            askFollowUp: true
+        };
+    }
+    // --- END LOCATION FUNCTION ---
 
 
-    // --- HOSTEL FUNCTIONS (Unchanged) ---
+    // --- HOSTEL FUNCTIONS ---
     function getHostelFacilities() {
         return `
         🏠 **PAU Hostel Facilities & Amenities**
@@ -147,11 +184,11 @@ const smallTalk = {
     // --- END HOSTEL FUNCTIONS ---
 
 
-    // --- UX / DOM Manipulation Functions (Unchanged) ---
+    // --- UX / DOM Manipulation Functions ---
     function addMessage(msg, sender) {
         const div = document.createElement('div');
         div.classList.add('message', sender);
-        div.innerHTML = msg;
+        div.innerHTML = msg; 
         chatBody.appendChild(div);
         chatBody.scrollTop = chatBody.scrollHeight;
     }
@@ -180,7 +217,6 @@ const smallTalk = {
 
         const container = document.createElement('div');
         container.classList.add('quick-replies');
-        // Apply dark-mode class to quick replies container if bot is in dark mode
         if (chatbotContainer.classList.contains('dark-mode')) {
              container.classList.add('dark-mode');
         }
@@ -196,13 +232,55 @@ const smallTalk = {
         chatBody.appendChild(container);
         chatBody.scrollTop = chatBody.scrollHeight;
     }
+    
+    async function showFeedbackReceived(type) {
+        const existingFeedback = document.querySelector('.feedback-buttons');
+        if (existingFeedback) existingFeedback.remove();
 
-    // Making this global for button clicks
+        const message = type === 'helpful' 
+            ? '<span style="font-size: 0.75em; font-style: italic; color: #6a6a6a;">✅ Thanks for your feedback!</span>' 
+            : '<span style="font-size: 0.75em; font-style: italic; color: #6a6a6a;">🙏 Feedback received. We\'ll use this to improve.</span>';
+
+        addMessage(message, 'bot');
+        
+        showTypingIndicator();
+        await new Promise(r => setTimeout(r, 600));
+        hideTypingIndicator();
+        
+        followUpContext = null; 
+        addMessage("Can I help you with anything else? 🤔", 'bot');
+        // Both FAQ and Fees added
+        addQuickReplies(['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location']); 
+    }
+    window.showFeedbackReceived = showFeedbackReceived; 
+
+    function addFeedbackButtons() {
+        const existingFeedback = document.querySelector('.feedback-buttons');
+        if (existingFeedback) existingFeedback.remove();
+        
+        const container = document.createElement('div');
+        container.classList.add('feedback-buttons');
+        
+        if (chatbotContainer.classList.contains('dark-mode')) {
+            container.classList.add('dark-mode');
+        }
+        
+        container.innerHTML = `
+            <button class="helpful-btn" onclick="showFeedbackReceived('helpful')">👍 Helpful</button>
+            <button class="not-helpful-btn" onclick="showFeedbackReceived('not-helpful')">👎 Not helpful</button>
+        `;
+        
+        chatBody.appendChild(container);
+        chatBody.scrollTop = chatBody.scrollHeight;
+    }
+
     window.handleQuickReply = function (text) {
         const existing = document.querySelector('.quick-replies');
         if (existing) existing.remove();
         
-        userInput.value = text.toLowerCase();
+        let normalizedText = text.toLowerCase();
+        
+        userInput.value = normalizedText;
         sendMessage();
     };
 
@@ -217,15 +295,82 @@ const smallTalk = {
     }
     // --- END UX / DOM Manipulation Functions ---
 
+    // --- Voice Input Implementation ---
+    function setupVoiceInput() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    // --- Core Logic Functions ---
+        if (!SpeechRecognition) {
+            console.warn("Web Speech API is not supported in this browser. Voice input disabled.");
+            return; 
+        }
+        
+        const micButton = document.createElement('button');
+        micButton.innerHTML = '🎤';
+        micButton.id = 'mic-btn';
+        micButton.style.padding = '10px 12px';
+        micButton.style.marginLeft = '8px';
+        micButton.style.border = 'none';
+        micButton.style.borderRadius = '20px';
+        micButton.style.cursor = 'pointer';
+        micButton.style.fontSize = '16px';
+        micButton.style.transition = 'background 0.2s';
+        
+        const setMicButtonStyle = () => {
+            micButton.style.background = chatbotContainer.classList.contains('dark-mode') ? '#d1b54a' : '#ffe600';
+            micButton.style.color = chatbotContainer.classList.contains('dark-mode') ? 'black' : 'initial';
+        };
+        setMicButtonStyle();
+
+        new MutationObserver(setMicButtonStyle).observe(chatbotContainer, { attributes: true, attributeFilter: ['class'] });
+
+        micButton.addEventListener('click', () => {
+            const recognition = new SpeechRecognition();
+            
+            recognition.lang = 'en-IN';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+            
+            micButton.style.background = 'red';
+            micButton.style.color = 'white';
+            userInput.placeholder = "Listening...";
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                userInput.value = transcript;
+                sendMessage();
+            };
+            
+            recognition.onend = () => {
+                setMicButtonStyle();
+                userInput.placeholder = "";
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                console.warn("Voice Input Hint: Ensure the page is served over HTTPS or localhost, and that microphone permissions are granted.");
+                
+                setMicButtonStyle();
+                userInput.placeholder = ""; 
+                alert('Voice input failed. Please check browser permissions and refresh the page if needed.');
+            };
+
+            recognition.start();
+        });
+
+        chatFooter.insertBefore(micButton, sendBtn);
+    }
+    // --- END Voice Input Implementation ---
+
+
+    // --- Core Logic Functions (Intent & Context Handling) ---
 
     function normalizeText(str) {
         return str.toLowerCase().replace(/[^a-z0-9\s]/gi, '').trim();
     }
 
-    // MODIFIED: Returns the structured smallTalk object
     function handleSmallTalk(msg) {
+        if (msg.includes('how are you')) return smallTalk['how are you'];
+
         for (const key in smallTalk) {
             if (msg.includes(key)) return smallTalk[key];
         }
@@ -245,99 +390,75 @@ const smallTalk = {
     }
 
     function handleIntent(msg) {
-        // Use current time and date in the bot's known location (Ludhiana)
         const now = new Date();
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' };
         const dateStr = now.toLocaleDateString('en-IN', options);
         const timeOptions = {hour: '2-digit', minute:'2-digit', timeZone: 'Asia/Kolkata'};
         const timeStr = now.toLocaleTimeString('en-IN', timeOptions);
 
-        // Utility Intents (Time, Date, Weather)
         if (msg.includes('date') || msg.includes('today')) {
             followUpContext = null; 
-            return { 
-                reply: `📅 Today is **${dateStr}**.`, 
-                quickReplies: null,
-                askFollowUp: true 
-            };
+            return { reply: `📅 Today is **${dateStr}**.`, quickReplies: null, askFollowUp: true };
         }
         if (msg.includes('time')) {
              followUpContext = null;
-             return { 
-                reply: `⏰ The current time in Ludhiana is **${timeStr}**.`, 
-                quickReplies: null,
-                askFollowUp: true 
-            };
+             return { reply: `⏰ The current time in Ludhiana is **${timeStr}**.`, quickReplies: null, askFollowUp: true };
         }
         if (msg.includes('weather')) {
-             // Hardcoded weather details for context: Ludhiana, Punjab, India (As of Sept 25, 2025)
-             const weatherData = {
-                current: '94°F (34°C)',
-                conditions: 'Sunny',
-                humidity: '50%',
-                wind: '5 mph Northwest'
-             }
-             
+             const weatherData = { current: '94°F (34°C)', conditions: 'Sunny', humidity: '50%', wind: '5 mph Northwest' }
              followUpContext = null;
+             return { reply: `☀️ The current weather in Ludhiana, Punjab is **${weatherData.current}** and **${weatherData.conditions}**. (Humidity: ${weatherData.humidity}, Wind: ${weatherData.wind})`, quickReplies: null, askFollowUp: true };
+        }
+        
+        // INTENT: Ranking 
+        if (msg.includes('ranking') || msg.includes('rank') || msg.includes('rating') || msg === 'ranking') {
+             followUpContext = null;
+             const rankingList = rankingInfo.details.length > 0 
+                ? `<ul><li>${rankingInfo.details.join('</li><li>')}</li></ul>` 
+                : '<p>Details currently unavailable.</p>';
+
              return { 
-                reply: `☀️ The current weather in Ludhiana, Punjab is **${weatherData.current}** and **${weatherData.conditions}**. (Humidity: ${weatherData.humidity}, Wind: ${weatherData.wind})`, 
-                quickReplies: null,
+                reply: `${rankingInfo.title}${rankingList}`, 
+                quickReplies: null, 
                 askFollowUp: true 
             };
         }
-        // End Utility Intents
-
-        // 1. Admission Intent
-        if (msg.includes('admission') || msg.includes('eligibility') || msg.includes('courses')) {
-            followUpContext = 'admission-level';
-            return {
-                reply: "Do you want to know about **UG** (undergraduate) or **PG** (postgraduate) programs?",
-                quickReplies: ['UG', 'PG'],
-                askFollowUp: false 
-            };
+        
+        // INTENT: Fees (Separated from FAQ)
+        if (msg.includes('fees') || msg.includes('fee') || msg === 'fees') {
+            followUpContext = null;
+            return feesDetails; // Direct reply, then ask follow-up
         }
 
-        // 2. Direct Program Search
+        // INTENT: Admission
+        if (msg.includes('admission') || msg.includes('eligibility') || msg.includes('courses') || msg === 'admission') {
+            followUpContext = 'admission-level';
+            return { reply: "Do you want to know about **UG** (undergraduate) or **PG** (postgraduate) programs?", quickReplies: ['UG', 'PG'], askFollowUp: false };
+        }
+
         const key = findProgramKey(msg);
         if (key) {
             const p = programDetails[key];
             followUpContext = null; 
-            return {
-                reply: `${p.icon} <strong>${p.title}:</strong><ul><li>${p.details.join('</li><li>')}</li></ul>`,
-                quickReplies: null,
-                askFollowUp: true 
-            };
+            return { reply: `${p.icon} <strong>${p.title}:</strong><ul><li>${p.details.join('</li><li>')}</li></ul>`, quickReplies: null, askFollowUp: true };
         }
 
-        // 3. FAQ Intent
-        if (msg.includes('faq')) {
-            followUpContext = 'faq';
-            return {
-                reply: "🙋‍♂️ **Frequently Asked Questions (FAQs):**<p>Please select a topic:</p>",
-                quickReplies: ['Fees', 'Hostel', 'Scholarship'],
-                askFollowUp: false 
-            };
+        // INTENT: FAQ 
+        if (msg.includes('faq') || msg === 'faq') {
+            followUpContext = 'faq-select'; // New context for FAQ specific flow
+            return faqDetails; // Sends generic FAQ prompt
         }
         
-        // 4. HOSTEL INTENT
-        if (msg.includes('hostel')) {
+        // INTENT: Hostel
+        if (msg.includes('hostel') || msg === 'hostel') {
             followUpContext = 'hostel-type-select'; 
-            return {
-                reply: getHostelFacilities(), 
-                quickReplies: ['Dormitory', 'Cubicle', 'Admission'],
-                askFollowUp: false 
-            };
+            return { reply: getHostelFacilities(), quickReplies: ['Dormitory', 'Cubicle', 'Admission'], askFollowUp: false };
         }
 
-        // 5. Location Intent
-        if (msg.includes('location')) {
+        // INTENT: Location
+        if (msg.includes('location') || msg === 'location') {
             followUpContext = null;
-            return {
-                reply: "📍 PAU is located in **Ludhiana**, Punjab, India.",
-            // MODIFIED: Added quick replies here to guide the user after location
-                quickReplies: ['Admission', 'FAQ', 'Hostel'],
-                askFollowUp: false 
-            };
+            return getLocationDetails(); // Calls new detailed location function
         }
         
         return null;
@@ -349,19 +470,18 @@ const smallTalk = {
         let quickReplies = null;
         let askFollowUp = false; 
 
-        // --- Handle Universal Jumps (Priority) ---
-        // If user interrupts a flow with a new main intent, handle it
-        if (context !== null && (msg.includes('admission') || msg.includes('faq') || msg.includes('hostel') || msg.includes('date') || msg.includes('time') || msg.includes('weather'))) {
+        // If user enters a new main intent, reset context and jump to handleIntent
+        if (context !== null && (msg.includes('admission') || msg.includes('faq') || msg.includes('hostel') || msg.includes('ranking') || msg.includes('fees') || msg.includes('fee') || msg.includes('date') || msg.includes('time') || msg.includes('weather') || msg === 'ranking' || msg === 'admission' || msg === 'hostel' || msg === 'location' || msg === 'fees' || msg === 'faq')) {
             followUpContext = null;
             return handleIntent(msg);
         }
 
-        // --- Handle Post-Query Wrap-up (Reset Context) ---
         if (context === 'finished-query') {
             if (msg.includes('yes')) {
                 newContext = null;
                 reply = "Sure, what else would you like to know? 🤔";
-                quickReplies = ['Admission', 'FAQ', 'Hostel', 'Location'];
+                // Both FAQ and Fees added
+                quickReplies = ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location']; 
             } else if (msg.includes('no')) {
                 newContext = null;
                 reply = "👋 Alright, have a great day! If you need anything, just say 'Hi'.";
@@ -371,10 +491,7 @@ const smallTalk = {
                 reply = "I didn't quite catch that. Do you need help with something else (Yes/No)?";
                 quickReplies = ['Yes', 'No'];
             }
-        }
-        
-        // A. UG/PG Level Selection
-        else if (context === 'admission-level') {
+        } else if (context === 'admission-level') {
             if (msg.includes('ug')) {
                 newContext = 'admission-ug';
                 reply = "🎓 **UG Programs:** Select a program for details:";
@@ -385,13 +502,11 @@ const smallTalk = {
                 quickReplies = ['M.Sc.', 'M.Tech.', 'UG'];
             } else {
                 newContext = null;
+                // Both FAQ and Fees added
                 reply = `🤔 Sorry, I couldn't understand. Please choose a topic to begin.`;
-                quickReplies = ['Admission', 'FAQ', 'Hostel', 'Location'];
+                quickReplies = ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location']; 
             }
-        } 
-        
-        // B. Program Detail Flow (UG or PG)
-        else if (context === 'admission-ug' || context === 'admission-pg') {
+        } else if (context === 'admission-ug' || context === 'admission-pg') {
             const key = findProgramKey(msg);
             
             if (key) {
@@ -405,32 +520,31 @@ const smallTalk = {
                  return handleContextFlow(msg, 'admission-level'); 
             } else {
                 newContext = null; 
+                // Both FAQ and Fees added
                 reply = `🤔 Sorry, I couldn't understand. Please choose a topic to begin.`;
-                quickReplies = ['Admission', 'FAQ', 'Hostel', 'Location'];
+                quickReplies = ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location']; 
             }
-        } 
-        
-        // C. FAQ Flow
-        else if (context === 'faq') {
-            if (msg.includes('fee')) {
-                reply = "💰 **Fees:** UG courses cost around ₹1.24 - ₹1.73 Lakh. PG fees vary by specialization.";
-                quickReplies = null;
-                askFollowUp = true;
-                newContext = null; 
-            } else if (msg.includes('scholarship')) {
-                reply = "🎓 **Scholarships:** PAU offers various merit-based and need-based scholarships for eligible students.";
-                quickReplies = null;
-                askFollowUp = true;
-                newContext = null; 
-            } else {
-                newContext = null; 
-                reply = `🤔 Sorry, I couldn't understand. Please choose a topic to begin.`;
-                quickReplies = ['Admission', 'FAQ', 'Hostel', 'Location'];
+        } else if (context === 'faq-select') {
+            // FAQ-specific context can handle sub-questions
+            if (msg.includes('hostel')) {
+                newContext = 'hostel-type-select';
+                return handleIntent(msg); // Jump to hostel intent
             }
-        } 
-        
-        // D. HOSTEL TYPE SELECTION FLOW
-        else if (context === 'hostel-type-select') {
+            if (msg.includes('location')) {
+                newContext = null;
+                return handleIntent(msg); // Jump to location intent
+            }
+            if (msg.includes('fees') || msg.includes('fee')) {
+                newContext = null;
+                return handleIntent(msg); // Jump to fees intent
+            }
+            else {
+                // If sub-question is not recognized, return to the main flow.
+                newContext = null; 
+                reply = `🤔 Sorry, I couldn't find a direct answer in the FAQ. Please try a main category.`;
+                quickReplies = ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location']; 
+            }
+        } else if (context === 'hostel-type-select') {
             if (msg.includes('dormitory')) {
                 reply = getDormitoryDetails();
                 quickReplies = null;
@@ -443,8 +557,9 @@ const smallTalk = {
                 newContext = null; 
             } else {
                 newContext = null; 
+                // Both FAQ and Fees added
                 reply = `🤔 Sorry, I couldn't understand. Please choose a topic to begin.`;
-                quickReplies = ['Admission', 'FAQ', 'Hostel', 'Location'];
+                quickReplies = ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location']; 
             }
         }
         
@@ -461,36 +576,34 @@ const smallTalk = {
     async function getBotResponse(message) {
         const raw = normalizeText(message);
         
-        // MODIFIED: Small talk now returns object
         const small = handleSmallTalk(raw);
-        if (small) return { 
-            reply: small.reply, 
-            quickReplies: small.quickReplies, 
-            askFollowUp: false 
-        };
+        if (small) return { reply: small.reply, quickReplies: small.quickReplies, askFollowUp: false };
 
-        // 1. Handle Contextual Flow (Priority when context is set)
         const contextRes = handleContextFlow(raw, followUpContext);
         if (contextRes && contextRes.reply) {
             return contextRes;
         }
 
-        // 2. Handle General Intents (Only if no context was active or matched)
         const intentRes = handleIntent(raw);
         if (intentRes) {
             return intentRes;
         }
 
-        // 3. Fallback: Reset context and show main options
         followUpContext = null;
+        // Both FAQ and Fees added
         return {
-            reply: `🤔 Sorry, I couldn't understand. Please choose a topic to begin.`,
-            quickReplies: ['Admission', 'FAQ', 'Hostel', 'Location'],
+            reply: `🤔 Sorry, I couldn't understand your request. Please try asking about a main topic.`,
+            quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location'],
             askFollowUp: false
         };
     }
 
     async function sendMessage() {
+        const existingFeedback = document.querySelector('.feedback-buttons');
+        if (existingFeedback) existingFeedback.remove();
+        const existingQuickReplies = document.querySelector('.quick-replies');
+        if (existingQuickReplies) existingQuickReplies.remove();
+        
         const msg = userInput.value.trim();
         if (!msg) {
             userInput.classList.add('error-shake');
@@ -510,10 +623,14 @@ const smallTalk = {
         
         addMessage(response.reply, 'bot');
         
+        if (!response.askFollowUp) {
+             addFeedbackButtons();
+        }
+
         if (response.quickReplies) {
             addQuickReplies(response.quickReplies);
         }
-
+        
         if (response.askFollowUp) {
             await askFollowUpQuestion();
         }
@@ -525,11 +642,14 @@ const smallTalk = {
         if (e.key === 'Enter') sendMessage();
     });
 
+    setupVoiceInput();
+
     // Start the conversation
     showTypingIndicator();
     setTimeout(() => {
         hideTypingIndicator();
+        // Both FAQ and Fees added
         addMessage("Hello! I'm the PAU InfoBot. How can I help you today? 👋", 'bot');
-        addQuickReplies(['Admission', 'FAQ', 'Hostel', 'Location']);
+        addQuickReplies(['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location']); 
     }, 1000); 
 });
