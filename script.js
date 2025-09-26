@@ -9,92 +9,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const modeToggle = document.getElementById('mode-toggle'); 
     const chatbotContainer = document.getElementById('chatbot-container'); 
     const chatFooter = document.querySelector('.chat-footer'); 
-    let followUpContext = null;
+    let followUpContext = null; // Used to manage simple Yes/No state after a RAG query
 
     // --- Data Objects ---
-    const programDetails = {
-        'b.sc': {
-            icon: '🎓',
-            title: 'B.Sc. (Hons) Agriculture',
-            keywords: ['bachelor of science', 'agriculture', 'bsc', 'agri'],
-            details: [
-                '<strong>Eligibility:</strong> 10+2 with Physics, Chemistry, and Math/Bio/Agriculture with at least 50% marks.',
-                '<strong>Accepted Exams:</strong> PAU CET.',
-                '<strong>Approx. Fees:</strong> ₹1.24 Lakh.',
-                '<strong>Curriculum:</strong> ICAR aligned.'
-            ]
-        },
-        'b.tech': {
-            icon: '⚙️',
-            title: 'B.Tech. Agricultural Engineering',
-            keywords: ['btech', 'engineering', 'engg'],
-            details: [
-                '<strong>Eligibility:</strong> 10+2 with PCM, ≥50% marks.', 
-                '<strong>Accepted Exams:</strong> JEE Main, PAU CET.',
-                '<strong>Approx. Fees:</strong> ₹1.73 Lakh.'
-            ]
-        },
-        'm.sc': {
-            icon: '🔬',
-            title: 'M.Sc. (Master of Science)',
-            keywords: ['master of science', 'msc'],
-            details: [
-                '<strong>Eligibility:</strong> Bachelor\'s degree in a relevant field with an OCPA of 6.0/10.0 or 60% marks.',
-                '<strong>Accepted Exams:</strong> PAU Master\'s Entrance Test (MET).',
-                '<strong>Approx. Fees:</strong> ₹76,880 - ₹1.9 Lakh per year.'
-            ]
-        },
-        'm.tech': {
-            icon: '🔬',
-            title: 'M.Tech. (Master of Technology)',
-            keywords: ['master of technology', 'mtech'],
-            details: [
-                '<strong>Eligibility:</strong> B.Tech. degree in a relevant field with a minimum CGPA of 6.0/10.0 or 60% marks.',
-                '<strong>Accepted Exams:</strong> PAU Master\'s Entrance Test (MET), ICAR AIEEA.',
-                '<strong>Approx. Fees:</strong> ₹76,880 (per year).'
-            ]
-        }
-    };
-    
-    const rankingInfo = {
-        title: '🏆 PAU Ranking Highlights (NIRF 2024)',
-        details: [
-            '**NIRF Agriculture & Allied Sector:** Ranked **#4** in India.',
-            '**NIRF Overall University Rank:** Top 100 in India.',
-            '**QS World Ranking:** Globally recognized for Agricultural Research Impact.'
-        ]
-    };
-
-    const feesDetails = {
-        reply: "💰 **Approximate Fees:** UG courses cost around **₹1.24 - ₹1.73 Lakh** (total). PG fees vary by specialization. (Please check the official prospectus for exact charges)",
-        quickReplies: null,
-        askFollowUp: true
-    };
-
-    const faqDetails = {
-        reply: "🙋‍♂️ **Frequently Asked Questions (FAQs):**<p>Please select a topic or type your question (e.g., 'hostel rules'):</p>",
-        quickReplies: ['Hostel', 'Location', 'Fees', 'Contact'], 
-        askFollowUp: false
-    };
-
     const smallTalk = {
-        hi: {
-            reply: "Hello! How can I help you? 👋",
-            quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location', 'Contact'] 
+        'hi': {
+            reply: "Hello! What can I help you with today? 👋",
+            quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel'] 
         },
-        hello: {
-            reply: "Hi there! What can I do for you?",
-            quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location', 'Contact'] 
-        },
-        'how are you': {
-            reply: "I'm a bot, so I'm always running optimally! Thanks for asking. How can I assist you with PAU information? 🤖",
-            quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location', 'Contact'] 
-        },
-        bye: {
+        'bye': {
             reply: "Goodbye! Have a nice day! 😊",
             quickReplies: null
         },
-        thanks: { 
+        'thanks': { 
             reply: "You're welcome! 😊",
             quickReplies: null
         }
@@ -164,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.createElement('div');
         container.classList.add('quick-replies');
         if (chatbotContainer.classList.contains('dark-mode')) {
-             container.classList.add('dark-mode');
+            container.classList.add('dark-mode');
         }
 
         replies.forEach(r => {
@@ -179,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chatBody.scrollTop = chatBody.scrollHeight;
     }
     
+    // Function called by the feedback buttons (Helpful/Not helpful)
     async function showFeedbackReceived(type) {
         const existingFeedback = document.querySelector('.feedback-buttons');
         if (existingFeedback) existingFeedback.remove();
@@ -195,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         followUpContext = null; 
         addMessage("Can I help you with anything else? 🤔", 'bot');
-        addQuickReplies(['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location', 'Contact']); 
+        addQuickReplies(['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel']); 
     }
     window.showFeedbackReceived = showFeedbackReceived; 
 
@@ -223,12 +151,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const existing = document.querySelector('.quick-replies');
         if (existing) existing.remove();
         
-        let normalizedText = text.toLowerCase();
-        
-        userInput.value = normalizedText;
+        // Ensure only the text of the quick reply is sent
+        userInput.value = text;
         sendMessage();
     };
 
+    // Asks the Yes/No follow-up question
     async function askFollowUpQuestion() {
         showTypingIndicator();
         await new Promise(r => setTimeout(r, getVariableDelay())); 
@@ -239,74 +167,6 @@ document.addEventListener('DOMContentLoaded', () => {
         addQuickReplies(['Yes', 'No']);
     }
 
-    function getContactDetails() { 
-        return {
-            reply: `
-            📞 **PAU Contact Information**
-            <ul>
-                <li><strong>General Enquiry:</strong> <a href="tel:+911612401960">+91-161-2401960</a></li>
-                <li><strong>Registrar Office:</strong> <a href="tel:+911612400827">+91-161-2400827</a></li>
-                <li><strong>Email (Admissions):</strong> <a href="mailto:registrar@pau.edu">registrar@pau.edu</a></li>
-                <li><strong>Official Website:</strong> <a href="http://pau.edu" target="_blank">www.pau.edu</a></li>
-            </ul>
-            <p>For specific department contacts, please check the official PAU directory on the website.</p>
-            `,
-            quickReplies: null, 
-            askFollowUp: true
-        };
-    }
-    
-    function getLocationDetails() { 
-        return {
-            reply: `
-            📍 **PAU Location Details**
-            <p><strong>Address:</strong> Punjab Agricultural University, Ferozepur Road, Ludhiana - 141004, Punjab, India.</p>
-            <p>The campus is located centrally in Ludhiana, right on the Ferozepur Road.</p>
-            <a href="https://maps.app.goo.gl/uX3L5q6f6w9YgG1F6" target="_blank" style="display: inline-block; padding: 8px 12px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin-top: 5px;">🗺️ View Map Location</a>
-            `,
-            quickReplies: null, 
-            askFollowUp: true
-        };
-    }
-    
-    function getHostelFacilities() { 
-        return `
-        🏠 **PAU Hostel Facilities & Amenities**
-        <p>The university has 14 separate, guarded hostels (UG/PG, Male/Female).</p>
-        
-        <strong>Key Facilities:</strong>
-        <ul>
-            <li>**Room Furnishings:** Bed, table, chair, and personal locker.</li>
-            <li>**Internet:** Wi-Fi connectivity (often concentrated in common areas).</li>
-            <li>**Mess:** Functional mess (charges separate) with varied menu options.</li>
-            <li>**Health:** Access to the on-campus 20-bedded university hospital.</li>
-        </ul>
-        <p>Which type of accommodation would you like details for?</p>
-        `;
-    }
-
-    function getDormitoryDetails() { 
-        return `
-        🛏️ **Dormitory Hostel Details**
-        <ul>
-            <li>**Occupancy:** Double, Triple, or **Quadruple (4-seater)** sharing.</li>
-            <li>**Eligibility:** Primarily allotted to **first-year students**.</li>
-            <li>**Approx. Annual Fees:** **₹17,270** (Excluding Mess & other funds).</li>
-        </ul>
-        `;
-    }
-
-    function getCubicleDetails() { 
-        return `
-        🚪 **Cubicle Hostel Details**
-        <ul>
-            <li>**Occupancy:** **Single-seater** (private) rooms.</li>
-            <li>**Eligibility:** Generally reserved for **higher-year students** or those with a high OCPA (academic performance).</li>
-            <li>**Approx. Annual Fees:** **₹26,650** (Excluding Mess & other funds).</li>
-        </ul>
-        `;
-    }
-    
     function setupVoiceInput() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -372,275 +232,41 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- Core Logic Functions ---
-    function processText(str) { 
-        if (typeof nlp === 'undefined') {
-            return {
-                raw: str.toLowerCase().replace(/[^a-z0-9\s]/gi, '', ).trim(),
-                doc: null
-            };
-        }
-        let doc = nlp(str).toLowerCase().trim();
-        let raw = doc.text();
-        return { raw, doc };
-    }
-
-    function handleSmallTalk(msg) { 
-        if (msg.includes('how are you')) return smallTalk['how are you'];
-        if (msg.includes('thanks') || msg.includes('thank you') || msg.includes('thankful')) return smallTalk['thanks'];
-
-        for (const key in smallTalk) {
-            if (msg.includes(key)) return smallTalk[key];
-        }
-        return null;
-    }
-
-    function findProgramKey(doc, msg) { 
-        for (const k in programDetails) {
-            if (msg === k || programDetails[k].keywords.some(kw => msg.includes(kw))) {
-                return k;
-            }
-        }
-        if (doc) {
-            const terms = doc.match('(bachelor|master) of (science|technology|engineering|agriculture)').text();
-            if (terms) {
-                if (terms.includes('bachelor of science') || terms.includes('bachelor of agriculture')) return 'b.sc';
-                if (terms.includes('bachelor of technology')) return 'b.tech';
-                if (terms.includes('master of science')) return 'm.sc';
-                if (terms.includes('master of technology')) return 'm.tech';
-            }
-        }
-        return null;
-    }
+    // --- Core Logic Functions (Simplified for RAG Backend) ---
     
-    function getUgProgramsList() {
-        return {
-            reply: "🎓 **UG Programs:** Select a program for details:",
-            quickReplies: ['B.Sc.', 'B.Tech.', 'PG'],
-            askFollowUp: false
-        }
-    }
-
-    function getPgProgramsList() {
-         return {
-            reply: "🔬 **PG Programs:** Select a program for details:",
-            quickReplies: ['M.Sc.', 'M.Tech.', 'UG'],
-            askFollowUp: false
-        }
-    }
-
-    function handleIntent(msg, doc) {
-        const now = new Date();
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' };
-        const dateStr = now.toLocaleDateString('en-IN', options);
-        const timeOptions = {hour: '2-digit', minute:'2-digit', timeZone: 'Asia/Kolkata'};
-        const timeStr = now.toLocaleTimeString('en-IN', timeOptions);
-        
-        // --- PRIORITY 1: SPECIFIC PROGRAM (MUST BE FIRST) ---
-        const key = findProgramKey(doc, msg);
-        if (key) {
-            const p = programDetails[key];
-            followUpContext = null; 
-            return { reply: `${p.icon} <strong>${p.title}:</strong><ul><li>${p.details.join('</li><li>')}</li></ul>`, quickReplies: null, askFollowUp: true };
-        }
-
-        // --- PRIORITY 2: DIRECT LEVEL INQUIRY (New Fix) ---
-        if (msg.includes('bachelor') || msg.includes('ug') || msg.includes('undergraduate')) {
-            followUpContext = 'admission-ug';
-            return getUgProgramsList();
-        }
-        if (msg.includes('master') || msg.includes('pg') || msg.includes('postgraduate')) {
-            followUpContext = 'admission-pg';
-            return getPgProgramsList();
-        }
-
-        // --- PRIORITY 3: GENERAL INTENTS ---
-        if (msg.includes('date') || msg.includes('today')) {
-            followUpContext = null; 
-            return { reply: `📅 Today is **${dateStr}**.`, quickReplies: null, askFollowUp: true };
-        }
-        if (msg.includes('time')) {
-             followUpContext = null;
-             return { reply: `⏰ The current time in Ludhiana is **${timeStr}**.`, quickReplies: null, askFollowUp: true };
-        }
-        if (msg.includes('weather')) {
-             const weatherData = { current: '94°F (34°C)', conditions: 'Sunny', humidity: '50%', wind: '5 mph Northwest' }
-             followUpContext = null;
-             return { reply: `☀️ The current weather in Ludhiana, Punjab is **${weatherData.current}** and **${weatherData.conditions}**. (Humidity: ${weatherData.humidity}, Wind: ${weatherData.wind})`, quickReplies: null, askFollowUp: true };
-        }
-        if (/(fees?|cost|charge|tuition)/.test(msg)) {
-            followUpContext = null;
-            return feesDetails;
-        }
-        if (msg.includes('ranking') || msg.includes('rank') || msg.includes('rating') || msg === 'ranking') {
-             followUpContext = null;
-             const rankingList = rankingInfo.details.length > 0 
-                ? `<ul><li>${rankingInfo.details.join('</li><li>')}</li></ul>` 
-                : '<p>Details currently unavailable.</p>';
-             return { 
-                reply: `${rankingInfo.title}${rankingList}`, 
-                quickReplies: null, 
-                askFollowUp: true 
-            };
-        }
-        if (msg.includes('hostel') || msg === 'hostel' || msg.includes('dormitory') || msg.includes('cubicle')) {
-            followUpContext = 'hostel-type-select'; 
-            return { reply: getHostelFacilities(), quickReplies: ['Dormitory', 'Cubicle', 'Admission'], askFollowUp: false };
-        }
-        if (msg.includes('location') || msg === 'location' || msg.includes('address') || msg.includes('directions')) {
-            followUpContext = null;
-            return getLocationDetails();
-        }
-        if (msg.includes('contact') || msg.includes('phone') || msg.includes('email') || msg === 'contact') {
-            followUpContext = null;
-            return getContactDetails(); 
-        }
-        if (msg.includes('faq') || msg === 'faq') {
-            followUpContext = 'faq-select'; 
-            return faqDetails;
-        }
-        
-        // --- PRIORITY 4: GENERAL ADMISSION/ELIGIBILITY (Fallback) ---
-        if (msg.includes('admission') || msg.includes('eligibility') || msg.includes('courses') || msg === 'admission') {
-            followUpContext = 'admission-level';
-            return { reply: "Do you want to know about **UG** (undergraduate) or **PG** (postgraduate) programs?", quickReplies: ['UG', 'PG'], askFollowUp: false };
-        }
-        
+    // Minimal small talk handler for immediate UI feedback (like greeting)
+    function handleSmallTalk(msg) { 
+        if (msg.includes('how are you')) return smallTalk['hi'];
+        if (msg.includes('thank') || msg.includes('thanks')) return smallTalk['thanks']; 
+        if (msg === 'hi' || msg === 'hello') return smallTalk['hi']; 
+        if (msg === 'bye' || msg.includes('goodbye')) return smallTalk['bye'];
         return null;
     }
 
-    // --- CRITICAL FIX: Context Flow Function ---
-    function handleContextFlow(msg, context, doc) {
+    // CRITICAL FIX: Context Flow Function (Handles Yes/No follow-up)
+    function handleContextFlow(msg, context) {
         let newContext = context;
         let reply = null;
         let quickReplies = null;
-        let askFollowUp = false; 
+        let showFeedback = false; // Flag to show feedback buttons immediately
 
-        // --- STEP 1: If Context is 'finished-query', check for Yes/No or New Intent ---
         if (context === 'finished-query') {
-            const smallTalkResponse = handleSmallTalk(msg);
-            
-            // 1A. Check for a completely new, valid MAJOR Intent or Small Talk
-            const isNewIntent = /(admission|faq|hostel|ranking|fees?|contact|location|date|time|weather|bachelor|master|ug|pg)/.test(msg) || findProgramKey(doc, msg);
-            
-            if (isNewIntent || smallTalkResponse) {
-                followUpContext = null; // Clear context
-                
-                const newResponse = handleIntent(msg, doc) || smallTalkResponse;
-                if (newResponse) return newResponse;
-            }
-
-            // 1B. If not a new intent, check if it's a Yes/No response to the follow-up question
             if (msg.includes('yes')) {
                 newContext = null;
                 reply = "Sure, what else would you like to know? 🤔";
-                quickReplies = ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location', 'Contact']; 
+                quickReplies = ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel']; 
             } else if (msg.includes('no')) {
                 newContext = null;
                 reply = "👋 Alright, have a great day! If you need anything, just say 'Hi'.";
                 quickReplies = null;
+                showFeedback = true; // Show feedback immediately after the 'No' response
             } else {
-                // User input was not "Yes", "No", or a new Intent (handled in 1A)
-                newContext = 'finished-query';
-                reply = "I'm still waiting for a Yes/No to see if you have another question. Do you need help with something else (Yes/No)?";
-                quickReplies = ['Yes', 'No'];
+                // If user enters a new question here, let the RAG take over.
+                return null;
             }
-
-        // --- STEP 2: Handle active level-specific contexts (admission-ug / admission-pg) ---
-        } else if (context === 'admission-ug') { 
-            // Handle UG program selection or attempt to switch to PG
-            const key = findProgramKey(doc, msg);
-            if (key) {
-                const p = programDetails[key];
-                reply = `${p.icon} <strong>${p.title}:</strong><ul><li>${p.details.join('</li><li>')}</li></ul>`;
-                quickReplies = null; 
-                askFollowUp = true;
-                newContext = null; 
-            } else if (msg.includes('pg') || msg.includes('master')) {
-                 newContext = 'admission-pg';
-                 return getPgProgramsList();
-            } else {
-                // Repeat UG list if input is unclear
-                reply = "Please select a UG program (B.Sc., B.Tech.) or type 'PG' to see postgraduate courses.";
-                quickReplies = ['B.Sc.', 'B.Tech.', 'PG']; 
-                newContext = 'admission-ug';
-            }
-        } else if (context === 'admission-pg') { 
-            // Handle PG program selection or attempt to switch to UG
-             const key = findProgramKey(doc, msg);
-            if (key) {
-                const p = programDetails[key];
-                reply = `${p.icon} <strong>${p.title}:</strong><ul><li>${p.details.join('</li><li>')}</li></ul>`;
-                quickReplies = null; 
-                askFollowUp = true;
-                newContext = null; 
-            } else if (msg.includes('ug') || msg.includes('bachelor')) {
-                 newContext = 'admission-ug';
-                 return getUgProgramsList();
-            } else {
-                // Repeat PG list if input is unclear
-                reply = "Please select a PG program (M.Sc., M.Tech.) or type 'UG' to see undergraduate courses.";
-                quickReplies = ['M.Sc.', 'M.Tech.', 'UG'];
-                newContext = 'admission-pg';
-            }
-
-        // --- STEP 3: Handle generic admission-level (only hit from the fallback in handleIntent) ---
-        } else if (context === 'admission-level') {
-            if (msg.includes('ug') || msg.includes('bachelor')) { 
-                newContext = 'admission-ug';
-                return getUgProgramsList();
-            } else if (msg.includes('pg') || msg.includes('master')) {
-                newContext = 'admission-pg';
-                return getPgProgramsList();
-            } else {
-                newContext = null;
-                reply = `🤔 Sorry, I couldn't understand. Please choose a topic to begin.`;
-                quickReplies = ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location', 'Contact']; 
-            }
-        } else if (context === 'faq-select') {
-            if (msg.includes('hostel')) {
-                newContext = 'hostel-type-select';
-                return handleIntent(msg, doc); 
-            }
-            if (msg.includes('location')) {
-                newContext = null;
-                return handleIntent(msg, doc); 
-            }
-            if (msg.includes('fees') || msg.includes('fee')) {
-                newContext = null;
-                return handleIntent(msg, doc); 
-            }
-            if (msg.includes('contact')) {
-                newContext = null;
-                return handleIntent(msg, doc); 
-            }
-            else {
-                newContext = null; 
-                reply = `🤔 Sorry, I couldn't find a direct answer in the FAQ. Please try a main category.`;
-                quickReplies = ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location', 'Contact']; 
-            }
-        } else if (context === 'hostel-type-select') {
-            if (msg.includes('dormitory')) {
-                reply = getDormitoryDetails();
-                quickReplies = null;
-                askFollowUp = true;
-                newContext = null; 
-            } else if (msg.includes('cubicle')) {
-                reply = getCubicleDetails();
-                quickReplies = null;
-                askFollowUp = true;
-                newContext = null; 
-            } else {
-                newContext = null; 
-                reply = `🤔 Sorry, I couldn't understand. Please choose a topic to begin.`;
-                quickReplies = ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location', 'Contact']; 
-            }
-        }
-        
-        // --- STEP 4: Return Result ---
-        if (reply) {
+            
             followUpContext = newContext;
-            return { reply, quickReplies, askFollowUp };
+            return { reply, quickReplies, askFollowUp: false, showFeedback };
         }
         
         return null;
@@ -650,35 +276,68 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Main Send Message Loop ---
 
     async function getBotResponse(message) {
-        const processed = processText(message);
-        const raw = processed.raw;
-        const doc = processed.doc;
+        const raw = message.toLowerCase().trim();
+        const backendUrl = "http://localhost:8000/chat";
         
-        // 1. Try to handle the message based on the current context first
-        const contextRes = handleContextFlow(raw, followUpContext, doc);
-        if (contextRes && contextRes.reply) {
+        // 1. Check for context flow (Yes/No after a query)
+        const contextRes = handleContextFlow(raw, followUpContext);
+        if (contextRes) {
             return contextRes;
         }
 
-        // 2. If no context was active or no context match was found, try small talk
+        // 2. Check for simple small talk (Hi/Bye)
         const small = handleSmallTalk(raw);
-        if (small) return { reply: small.reply, quickReplies: small.quickReplies, askFollowUp: false };
-
-        // 3. Finally, try to handle it as a brand new intent
-        const intentRes = handleIntent(raw, doc);
-        if (intentRes) {
-            return intentRes;
+        if (small) {
+            followUpContext = null; // Clear context after small talk
+            return { reply: small.reply, quickReplies: small.quickReplies, askFollowUp: false, showFeedback: false };
         }
+        
+        // 3. Send query to the RAG backend
+        followUpContext = null; // Clear any pre-existing context
+        try {
+            const response = await fetch(backendUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ 
+                    query: message // Send the original, unnormalized message
+                })
+            });
 
-        followUpContext = null;
-        return {
-            reply: `🤔 Sorry, I couldn't understand your request. Please try asking about a main topic.`,
-            quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location', 'Contact'],
-            askFollowUp: false
-        };
+            if (!response.ok) {
+                // Check if the response is JSON, otherwise use the status text
+                const errorText = response.headers.get('content-type')?.includes('application/json') 
+                    ? (await response.json()).detail || response.statusText
+                    : response.statusText;
+                
+                throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
+            }
+
+            const data = await response.json();
+            
+            // RAG response flow
+            return {
+                reply: data.response,
+                quickReplies: null, 
+                askFollowUp: true, // This will trigger askFollowUpQuestion()
+                showFeedback: false // Feedback is shown *after* follow-up logic
+            };
+
+        } catch (error) {
+            console.error("RAG Backend Error:", error);
+            // Error response flow
+            return {
+                reply: "🚨 **Error connecting to the RAG backend.** Please ensure your Python server is running on `http://localhost:8000/chat` and try again.",
+                quickReplies: ['Admission', 'Fees', 'FAQ'],
+                askFollowUp: false,
+                showFeedback: true // Show feedback buttons after the error message
+            };
+        }
     }
 
     async function sendMessage() {
+        // Clear previous quick replies and feedback buttons
         const existingFeedback = document.querySelector('.feedback-buttons');
         if (existingFeedback) existingFeedback.remove();
         const existingQuickReplies = document.querySelector('.quick-replies');
@@ -692,6 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         let displayMsg = msg;
+        // Use nlp if available to clean up user input display
         if (typeof nlp !== 'undefined') {
             displayMsg = nlp(msg).toTitleCase().out('text');
         }
@@ -708,24 +368,28 @@ document.addEventListener('DOMContentLoaded', () => {
         
         addMessage(response.reply, 'bot');
         
-        if (!response.askFollowUp) {
-             addFeedbackButtons();
-        }
-
+        // Show quick replies if provided (e.g., after 'Yes' or 'Hi')
         if (response.quickReplies) {
             addQuickReplies(response.quickReplies);
         }
         
+        // --- Feedback and Follow-up Logic ---
+        
         if (response.askFollowUp) {
+            // RAG call was successful, ask the Yes/No follow-up question
             await askFollowUpQuestion();
+        } else if (response.showFeedback) {
+            // Show feedback immediately if the chat flow ended naturally (e.g., after 'No' or an error)
+            addFeedbackButtons();
         }
     }
     
-    // --- UPDATED GREETING FUNCTION (Removed Time) ---
+    // --- UPDATED GREETING FUNCTION ---
     function getGreeting() {
         const hour = new Date().getHours();
         
         let greeting;
+        
         if (hour < 12) {
             greeting = "Good morning";
         } else if (hour < 17) {
@@ -749,6 +413,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         hideTypingIndicator();
         addMessage(getGreeting(), 'bot');
-        addQuickReplies(['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel', 'Location', 'Contact']); 
+        addQuickReplies(['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel']); 
     }, getVariableDelay() + 500); 
 });
