@@ -1,69 +1,109 @@
-import os
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+# ingest_data.py
+
+from langchain_community.document_loaders import WebBaseLoader, PyPDFLoader
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
+from langchain.text_splitter import RecursiveCharacterTextSplitter # CORRECTED LINE
+import os
+import shutil
+import requests
+import urllib3
+
+# Globally disable security warnings for the session (required for some PAU URLs)
+# This is a workaround for certificate verification failures.
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+requests.packages.urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- Configuration ---
-# NOTE: Ensure you have a PDF file named 'pau_web_content.pdf' in your root directory
-PDF_PATH = "pau_web_content.pdf" 
-VECTOR_DB_PATH = "chroma_db"
+# NOTE: Switched to all-minilm for faster embedding generation than gemma:2b
+OLLAMA_MODEL = "all-minilm" 
+CHROMA_PATH = "chroma_db"
+PDF_FILE_NAME = "pau_prospectus.pdf" 
 
-# CRITICAL FIX: Use the SAME model for embeddings as you use for the LLM in main.py
-OLLAMA_MODEL = "gemma:2b" 
+# List of web URLs
+PAU_URLS = [
+    "https://www.pau.edu/", 
+    "https://www.pau.edu/index.php?_act=manageResult&DO=viewResultDetail&intID=2", 
+    "https://pau-apms.in/prospectus/courses.pdf", 
+]
 
-# --- Main Ingestion Logic ---
-def ingest_data():
-    """
-    Loads documents from a PDF, splits them into chunks, creates embeddings
-    using Ollama, and persists them to the Chroma vector store.
-    """
-    if not os.path.exists(PDF_PATH):
-        print(f"Error: PDF file not found at {PDF_PATH}. Please place your document there.")
-        return
+def load_documents():
+    """Loads documents from both the provided URLs and the local PDF file."""
+    documents = []
+    
+    # 1. Load Web Documents
+    print("1. Loading documents from URLs...")
+    for url in PAU_URLS:
+        try:
+            # Relying on global requests/urllib3 settings for SSL bypass
+            web_loader = WebBaseLoader(url)
+            documents.extend(web_loader.load())
+            print(f"   -> Successfully loaded: {url}")
+        except Exception as e:
+            # We still expect errors for www.pau.edu, but we load what we can
+            print(f"   ⚠️ Could not load URL {url}: {e}")
 
-    print(f"1. Loading document from {PDF_PATH}...")
-    try:
-        # Load the PDF content
-        loader = PyPDFLoader(PDF_PATH)
-        documents = loader.load()
-    except Exception as e:
-        print(f"Error loading PDF: {e}")
-        return
+    # 2. Load PDF Document
+    if os.path.exists(PDF_FILE_NAME):
+        print(f"2. Loading document from PDF: {PDF_FILE_NAME}...")
+        try:
+            pdf_loader = PyPDFLoader(PDF_FILE_NAME)
+            documents.extend(pdf_loader.load())
+            print("   -> PDF loaded successfully.")
+        except Exception as e:
+            print(f"   ❌ Could not load PDF {PDF_FILE_NAME}: {e}")
+    else:
+        print(f"2. ❌ PDF file not found at '{PDF_FILE_NAME}'. Please check the file name and location.")
+        
+    return documents
 
-    # Split documents into smaller, manageable chunks
-    print("2. Splitting documents into chunks...")
+def split_text(documents: list):
+    """Splits loaded documents into smaller, manageable chunks."""
+    print("3. Splitting documents into chunks...")
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200,
         length_function=len,
         is_separator_regex=False,
     )
-    texts = text_splitter.split_documents(documents)
-    print(f"   -> Created {len(texts)} text chunks.")
+    chunks = text_splitter.split_documents(documents)
+    print(f"   -> Created {len(chunks)} text chunks.")
+    return chunks
 
-    # Initialize the Ollama Embeddings model
-    # This will now use the gemma:2b model's own embedding capabilities (2048 dims)
-    print(f"3. Initializing Ollama Embeddings with model: {OLLAMA_MODEL}...")
+def main():
+    """Main function to ingest data and create the Chroma DB."""
+    
+    # 1. Clear existing database (recommended for fresh data)
+    if os.path.exists(CHROMA_PATH):
+        print(f"Clearing existing database at {CHROMA_PATH}...")
+        shutil.rmtree(CHROMA_PATH) 
+
+    # 2. Load Data
+    documents = load_documents()
+    if not documents:
+        print("❌ No documents loaded. Cannot proceed with database creation.")
+        return
+
+    # 3. Split Text
+    chunks = split_text(documents)
+
+    # 4. Create Embeddings
+    print(f"4. Initializing Ollama Embeddings with model: {OLLAMA_MODEL}...")
     try:
         embeddings = OllamaEmbeddings(model=OLLAMA_MODEL)
     except Exception as e:
-        print(f"Error initializing Ollama Embeddings. Ensure 'ollama serve' is running and model '{OLLAMA_MODEL}' is pulled. Error: {e}")
+        print(f"   ❌ Error initializing Ollama Embeddings. Is 'ollama serve' running? Error: {e}")
         return
 
-    # Create the vector store and persist the embeddings
-    print(f"4. Creating and persisting Chroma DB in {VECTOR_DB_PATH}...")
-    try:
-        # If chroma_db exists, this will load it. If it doesn't, it will create it.
-        Chroma.from_documents(
-            documents=texts,
-            embedding=embeddings,
-            persist_directory=VECTOR_DB_PATH
-        )
-        print("✅ Data ingestion complete! Chroma DB is ready.")
-    except Exception as e:
-        print(f"Error creating Chroma DB: {e}")
-        print("This might be due to a previous dimension mismatch. Try deleting the 'chroma_db' folder and running this script again.")
+    # 5. Create Vector Database
+    print(f"5. Creating and persisting Chroma DB in {CHROMA_PATH}...")
+    Chroma.from_documents(
+        chunks,
+        embeddings,
+        persist_directory=CHROMA_PATH
+    )
+
+    print("✅ Web and PDF data ingestion complete! Chroma DB is ready.")
 
 if __name__ == "__main__":
-    ingest_data()
+    main()
