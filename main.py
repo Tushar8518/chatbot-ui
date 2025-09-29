@@ -1,6 +1,5 @@
-# main.py
-
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain_community.llms import Ollama
 from langchain_community.vectorstores import Chroma
@@ -13,7 +12,7 @@ import os
 # --- Configuration ---
 # NOTE: Must match the model used in ingest_data.py
 OLLAMA_MODEL = "all-minilm" 
-LLM_MODEL = "gemma:2b" # Use a separate, larger model for generating the final answer
+LLM_MODEL = "gemma-gpu" # Use a separate, larger model for generating the final answer
 CHROMA_PATH = "chroma_db"
 
 # --- Pydantic Model for Request Body ---
@@ -22,6 +21,28 @@ class ChatRequest(BaseModel):
 
 # --- FastAPI Initialization ---
 app = FastAPI()
+
+# --- START: CORS Configuration to fix 405 Method Not Allowed / 400 Bad Request ---
+# Define which addresses (origins) are allowed to connect to this backend.
+origins = [
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173", # Common dev server port
+    "http://127.0.0.1:5173", # Common dev server port
+    "http://localhost:5500", # Your frontend port (localhost)
+    "http://127.0.0.1:5500", # Your frontend port (127.0.0.1)
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,       # The list of allowed frontends
+    allow_credentials=True,      # Allow cookies/auth headers
+    allow_methods=["*"],         # Allow all methods (crucial for handling OPTIONS)
+    allow_headers=["*"],         # Allow all headers
+)
+# --- END: CORS Configuration ---
 
 # --- RAG Setup Variables ---
 qa_chain = None
@@ -55,8 +76,10 @@ def setup_rag_chain():
 
     # 1. Initialize Ollama LLM (The one that generates the text answer)
     try:
+        # CORRECTED INDENTATION
         llm = Ollama(model=LLM_MODEL, temperature=0.0) 
     except Exception as e:
+        # CORRECTED INDENTATION
         print(f"❌ Error initializing Ollama LLM. Is 'ollama serve' running? Error: {e}")
         return
 
@@ -117,10 +140,11 @@ def chat_endpoint(request: ChatRequest):
         
     try:
         result = qa_chain.invoke({"query": request.query})
-        return {"answer": result["result"].strip()}
+        # Returning 'response' key to match your script.js logic
+        return {"response": result["result"].strip()} 
     except Exception as e:
         print(f"Error during chat query: {e}")
-        return {"answer": "An internal error occurred while processing your request."}
+        return {"response": "An internal error occurred while processing your request."}
 
 # --- Uvicorn Server Command ---
 if __name__ == "__main__":
