@@ -102,7 +102,7 @@ def setup_rag_chain():
     # 4. Create Retriever
     retriever = vector_store.as_retriever(
         search_type="similarity_score_threshold",
-        search_kwargs={"score_threshold": 0.7} 
+        search_kwargs={"score_threshold": 5} 
     )
 
     # 5. Build the RAG Chain
@@ -139,6 +139,9 @@ def chat_endpoint(request: ChatRequest):
         return {"error": "RAG Chain is not initialized. Check server console for errors."}
         
     try:
+         print(f"\n[DEBUG] Context Retrieved for '{request.query}':")
+        for doc in docs:
+            print(f"- Source: {doc.metadata.get('source')} | Content snippet: {doc.page_content[:50]}...")
         result = qa_chain.invoke({"query": request.query})
         # Returning 'response' key to match your script.js logic
         return {"response": result["result"].strip()} 
