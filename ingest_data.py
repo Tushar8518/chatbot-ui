@@ -1,5 +1,7 @@
 # ingest_data.py
 
+import time
+
 from langchain_community.document_loaders import WebBaseLoader, PyPDFLoader
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -8,6 +10,7 @@ import os
 import shutil
 import requests
 import urllib3
+os.environ['USER_AGENT'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 
 # Globally disable security warnings for the session (required for some PAU URLs)
 # This is a workaround for certificate verification failures.
@@ -18,13 +21,13 @@ requests.packages.urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWar
 # NOTE: Switched to all-minilm for faster embedding generation than gemma:2b
 OLLAMA_MODEL = "all-minilm" 
 CHROMA_PATH = "chroma_db"
-PDF_FILE_NAME = "pau_prospectus.pdf" 
+#PDF_FILE_NAME = "pau_prospectus.pdf" 
 
 # List of web URLs
 PAU_URLS = [
-    "https://www.pau.edu/", 
-    "https://www.pau.edu/index.php?_act=manageResult&DO=viewResultDetail&intID=2", 
-    "https://pau-apms.in/prospectus/courses.pdf", 
+    "https://pau.edu/", 
+    #"https://www.pau.edu/index.php?_act=manageResult&DO=viewResultDetail&intID=2", 
+    #"https://pau-apms.in/prospectus/courses.pdf", */
 ]
 
 def load_documents():
@@ -44,18 +47,18 @@ def load_documents():
             print(f"   ⚠️ Could not load URL {url}: {e}")
 
     # 2. Load PDF Document
-    if os.path.exists(PDF_FILE_NAME):
-        print(f"2. Loading document from PDF: {PDF_FILE_NAME}...")
-        try:
-            pdf_loader = PyPDFLoader(PDF_FILE_NAME)
-            documents.extend(pdf_loader.load())
-            print("   -> PDF loaded successfully.")
-        except Exception as e:
-            print(f"   ❌ Could not load PDF {PDF_FILE_NAME}: {e}")
-    else:
-        print(f"2. ❌ PDF file not found at '{PDF_FILE_NAME}'. Please check the file name and location.")
+   # if os.path.exists(PDF_FILE_NAME):
+    #    print(f"2. Loading document from PDF: {PDF_FILE_NAME}...")
+     #   try:
+      #      pdf_loader = PyPDFLoader(PDF_FILE_NAME)
+       #     documents.extend(pdf_loader.load())
+        #    print("   -> PDF loaded successfully.")
+        #except Exception as e:
+          #  print(f"   ❌ Could not load PDF {PDF_FILE_NAME}: {e}")
+    #else:
+     #   print(f"2. ❌ PDF file not found at '{PDF_FILE_NAME}'. Please check the file name and location.")
         
-    return documents
+    #return documents
 
 def split_text(documents: list):
     """Splits loaded documents into smaller, manageable chunks."""
@@ -73,35 +76,58 @@ def split_text(documents: list):
 def main():
     """Main function to ingest data and create the Chroma DB."""
     
-    # 1. Clear existing database (recommended for fresh data)
+    # 1. Clear existing database
     if os.path.exists(CHROMA_PATH):
         print(f"Clearing existing database at {CHROMA_PATH}...")
         shutil.rmtree(CHROMA_PATH) 
 
-    # 2. Load Data
+    # 2. Load and Split Data
     documents = load_documents()
     if not documents:
         print("❌ No documents loaded. Cannot proceed with database creation.")
         return
-
-    # 3. Split Text
+    
     chunks = split_text(documents)
-
-    # 4. Create Embeddings
+    
+    # --- 4. Create Embeddings ---
     print(f"4. Initializing Ollama Embeddings with model: {OLLAMA_MODEL}...")
     try:
+        # NO request_timeout here to avoid validation error
         embeddings = OllamaEmbeddings(model=OLLAMA_MODEL)
     except Exception as e:
-        print(f"   ❌ Error initializing Ollama Embeddings. Is 'ollama serve' running? Error: {e}")
+        print(f"❌ Error initializing Ollama Embeddings. Is 'ollama serve' running? Error: {e}")
         return
 
-    # 5. Create Vector Database
-    print(f"5. Creating and persisting Chroma DB in {CHROMA_PATH}...")
-    Chroma.from_documents(
-        chunks,
-        embeddings,
-        persist_directory=CHROMA_PATH
-    )
+    # --- 5. Create Vector Database (BATCHED) ---
+    print(f"5. Creating and persisting Chroma DB in {CHROMA_PATH} (BATCHED)...")
+    print("  -> Pausing 10 seconds to ensure Ollama server is ready for first batch...")
+    time.sleep(10)
+    # 🌟 CRITICAL FIX: Define the batch size
+    BATCH_SIZE = 200 
+    
+    # Use a variable to hold the Chroma instance
+    vector_store = None
+    
+    for i in range(0, len(chunks), BATCH_SIZE):
+        batch = chunks[i:i + BATCH_SIZE]
+        print(f" -> Processing batch {i // BATCH_SIZE + 1} of {len(chunks) // BATCH_SIZE + 1} (Chunks {i} to {i + len(batch) - 1})...", end='', flush=True)
+
+        if vector_store is None:
+            # Create the first batch, which initializes the database
+            vector_store = Chroma.from_documents(
+                batch,
+                embeddings,
+                persist_directory=CHROMA_PATH
+            )
+        else:
+            # Add subsequent batches to the existing database
+            vector_store.add_documents(batch)
+        
+        print("Done.")
+
+    # Final persist (important to save the index to disk)
+    if vector_store:
+        vector_store.persist()
 
     print("✅ Web and PDF data ingestion complete! Chroma DB is ready.")
 
