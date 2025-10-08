@@ -1,62 +1,46 @@
-// NOTE: This code assumes the Compromise library is loaded in your HTML:
-// <script src="https://unpkg.com/compromise@latest/builds/compromise.min.js"></script>
-// <script type="module" src="script.js"></script>
-
 document.addEventListener('DOMContentLoaded', () => {
     const chatBody = document.getElementById('chat-body');
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('send-btn');
-    const modeToggle = document.getElementById('mode-toggle'); 
-    const chatbotContainer = document.getElementById('chatbot-container'); 
-    const chatFooter = document.querySelector('.chat-footer'); 
-    let followUpContext = null; // Used to manage simple Yes/No state after a RAG query
-
-    // --- Data Objects ---
+    
+    // --- STATE MANAGEMENT ---
+    const backendUrl = "http://127.0.0.1:8000/chat"; 
+    const sessionId = `browser_session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    
+    const state = {
+        followUpContext: null 
+    };
+    
+    console.log(`New Chat Session ID: ${sessionId}`);
+    
+    // --- Data Objects (UNCHANGED) ---
     const smallTalk = {
         'hi': {
             reply: "Hello! What can I help you with today? 👋",
-            quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel'] 
+            quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel'],
+            preventFollowUp: true 
         },
         'bye': {
             reply: "Goodbye! Have a nice day! 😊",
-            quickReplies: null
+            quickReplies: null,
+            preventFollowUp: true 
         },
         'thanks': { 
-            reply: "You're welcome! 😊",
-            quickReplies: null
+            reply: "You're welcome! Is there anything else I can assist you with? 😊",
+            quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel'],
+            preventFollowUp: true 
+        },
+        'error': {
+            reply: "🚨 **Error connecting to the RAG backend.** Please ensure your server is running and the URL is correct. Check the browser console for details.",
+            quickReplies: ['Admission', 'Fees', 'FAQ'],
+            askFollowUp: false,
+            showFeedback: true, 
+            preventFollowUp: true
         }
     };
-    // --- END Data Objects ---
 
     // --- Utility Functions ---
-    
-    function setMode(isDark) {
-        if (isDark) {
-            chatbotContainer.classList.add('dark-mode');
-            modeToggle.innerText = '🌙'; 
-            localStorage.setItem('mode', 'dark');
-        } else {
-            chatbotContainer.classList.remove('dark-mode');
-            modeToggle.innerText = '☀️'; 
-            localStorage.setItem('mode', 'light');
-        }
-    }
-
-    modeToggle.addEventListener('click', () => {
-        const isDark = chatbotContainer.classList.contains('dark-mode');
-        setMode(!isDark);
-    });
-
-    const savedMode = localStorage.getItem('mode');
-    if (savedMode === 'dark') {
-        setMode(true);
-    } else {
-        setMode(false); 
-    }
-    
-    function getVariableDelay() {
-        return Math.random() * (1000 - 400) + 400; 
-    }
+    function getVariableDelay() { return Math.random() * (1000 - 400) + 400; }
 
     function addMessage(msg, sender) {
         const div = document.createElement('div');
@@ -81,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const ind = document.getElementById('typing-indicator');
         if (ind) ind.remove();
     }
-
+    
     function addQuickReplies(replies) {
         if (!replies || replies.length === 0) return;
 
@@ -90,23 +74,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const container = document.createElement('div');
         container.classList.add('quick-replies');
-        if (chatbotContainer.classList.contains('dark-mode')) {
-            container.classList.add('dark-mode');
-        }
-
+        
         replies.forEach(r => {
             const btn = document.createElement('button');
             btn.innerText = r;
-            btn.onclick = () => {
-                window.handleQuickReply(r); 
+            
+            btn.onclick = () => { 
+                userInput.value = r; 
+                sendMessage(); 
             };
+            
             container.appendChild(btn);
         });
         chatBody.appendChild(container);
         chatBody.scrollTop = chatBody.scrollHeight;
     }
     
-    // Function called by the feedback buttons (Helpful/Not helpful)
+    function resetChatState() {
+        const existingFeedback = document.querySelector('.feedback-buttons');
+        if (existingFeedback) existingFeedback.remove();
+        const existingQuickReplies = document.querySelector('.quick-replies');
+        if (existingQuickReplies) existingQuickReplies.remove();
+    }
+    window.resetChatState = resetChatState; 
+
+    // ✅ Function to clear history on the backend
+    async function clearBackendHistory() {
+        const clearUrl = backendUrl.replace('/chat', '/clear_history'); 
+        try {
+            await fetch(clearUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: "clear", session_id: sessionId })
+            });
+            console.log("Backend history successfully cleared.");
+        } catch (error) {
+            console.error("Failed to clear backend history:", error);
+        }
+    }
+
     async function showFeedbackReceived(type) {
         const existingFeedback = document.querySelector('.feedback-buttons');
         if (existingFeedback) existingFeedback.remove();
@@ -117,13 +123,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         addMessage(message, 'bot');
         
-        showTypingIndicator();
-        await new Promise(r => setTimeout(r, getVariableDelay()));
-        hideTypingIndicator();
-        
-        followUpContext = null; 
-        addMessage("Can I help you with anything else? 🤔", 'bot');
-        addQuickReplies(['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel']); 
+        if (state.followUpContext !== 'finished-query') {
+            addMessage("Is there anything else I can assist you with? 🤓", 'bot');
+            addQuickReplies(['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel']); 
+        }
     }
     window.showFeedbackReceived = showFeedbackReceived; 
 
@@ -134,11 +137,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.createElement('div');
         container.classList.add('feedback-buttons');
         
-        if (chatbotContainer.classList.contains('dark-mode')) {
-            container.classList.add('dark-mode');
-        }
-        
         container.innerHTML = `
+            <span class="feedback-text">Was this helpful?</span>
             <button class="helpful-btn" onclick="showFeedbackReceived('helpful')">👍 Helpful</button>
             <button class="not-helpful-btn" onclick="showFeedbackReceived('not-helpful')">👎 Not helpful</button>
         `;
@@ -146,203 +146,141 @@ document.addEventListener('DOMContentLoaded', () => {
         chatBody.appendChild(container);
         chatBody.scrollTop = chatBody.scrollHeight;
     }
+    
+    async function askForFeedbackAndFollowUp() {
+        addFeedbackButtons();
 
-    window.handleQuickReply = function (text) {
-        const existing = document.querySelector('.quick-replies');
-        if (existing) existing.remove();
-        
-        // Ensure only the text of the quick reply is sent
-        userInput.value = text;
-        sendMessage();
-    };
-
-    // Asks the Yes/No follow-up question
-    async function askFollowUpQuestion() {
         showTypingIndicator();
         await new Promise(r => setTimeout(r, getVariableDelay())); 
         hideTypingIndicator();
 
-        followUpContext = 'finished-query';
-        addMessage("Can I help you with anything else? 🤔", 'bot');
+        state.followUpContext = 'finished-query'; 
+        console.log("State changed to 'finished-query'. Asking for Yes/No follow-up.");
+        addMessage("Do you want me to help with something else? Click on yes for your next query 🤔", 'bot');
         addQuickReplies(['Yes', 'No']);
     }
 
-    function setupVoiceInput() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-        if (!SpeechRecognition) {
-            console.warn("Web Speech API is not supported in this browser. Voice input disabled.");
-            return; 
-        }
-        
-        const micButton = document.createElement('button');
-        micButton.innerHTML = '🎤';
-        micButton.id = 'mic-btn';
-        micButton.style.padding = '10px 12px';
-        micButton.style.marginLeft = '8px';
-        micButton.style.border = 'none';
-        micButton.style.borderRadius = '20px';
-        micButton.style.cursor = 'pointer';
-        micButton.style.fontSize = '16px';
-        micButton.style.transition = 'background 0.2s';
-        
-        const setMicButtonStyle = () => {
-            micButton.style.background = chatbotContainer.classList.contains('dark-mode') ? '#d1b54a' : '#ffe600';
-            micButton.style.color = chatbotContainer.classList.contains('dark-mode') ? 'black' : 'initial';
-        };
-        setMicButtonStyle();
-
-        new MutationObserver(setMicButtonStyle).observe(chatbotContainer, { attributes: true, attributeFilter: ['class'] });
-
-        micButton.addEventListener('click', () => {
-            const recognition = new SpeechRecognition();
-            
-            recognition.lang = 'en-IN';
-            recognition.interimResults = false;
-            recognition.maxAlternatives = 1;
-            
-            micButton.style.background = 'red';
-            micButton.style.color = 'white';
-            userInput.placeholder = "Listening...";
-
-            recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                userInput.value = transcript;
-                sendMessage();
-            };
-            
-            recognition.onend = () => {
-                setMicButtonStyle();
-                userInput.placeholder = "Ask your question...";
-            };
-
-            recognition.onerror = (event) => {
-                console.error('Speech recognition error:', event.error);
-                console.warn("Voice Input Hint: Ensure the page is served over HTTPS or localhost, and that microphone permissions are granted.");
-                
-                setMicButtonStyle();
-                userInput.placeholder = "Ask your question..."; 
-                alert('Voice input failed. Please check browser permissions and refresh the page if needed.');
-            };
-
-            recognition.start();
-        });
-
-        chatFooter.insertBefore(micButton, sendBtn);
-    }
-
-
-    // --- Core Logic Functions (Simplified for RAG Backend) ---
-    
-    // Minimal small talk handler for immediate UI feedback (like greeting)
     function handleSmallTalk(msg) { 
-        if (msg.includes('how are you')) return smallTalk['hi'];
-        if (msg.includes('thank') || msg.includes('thanks')) return smallTalk['thanks']; 
-        if (msg === 'hi' || msg === 'hello') return smallTalk['hi']; 
-        if (msg === 'bye' || msg.includes('goodbye')) return smallTalk['bye'];
+        const lowerMsg = msg.toLowerCase().trim();
+        
+        if (lowerMsg === 'hi' || lowerMsg === 'hello' || lowerMsg === 'hey' || lowerMsg.includes('how are you')) {
+            return { ...smallTalk['hi'], askFollowUp: false, showFeedback: false }; 
+        }
+        if (lowerMsg.includes('thank') || lowerMsg.includes('thanks') || lowerMsg === 'ty') { 
+            return { ...smallTalk['thanks'], askFollowUp: false, showFeedback: false }; 
+        }
+        if (lowerMsg === 'bye' || lowerMsg.includes('goodbye')) {
+            return { ...smallTalk['bye'], askFollowUp: false, showFeedback: false };
+        }
+        
         return null;
     }
-
-    // CRITICAL FIX: Context Flow Function (Handles Yes/No follow-up)
+    
     function handleContextFlow(msg, context) {
-        let newContext = context;
-        let reply = null;
-        let quickReplies = null;
-        let showFeedback = false; // Flag to show feedback buttons immediately
+        const lowerMsg = msg.toLowerCase().trim();
 
-        if (context === 'finished-query') {
-            if (msg.includes('yes')) {
-                newContext = null;
-                reply = "Sure, what else would you like to know? 🤔";
-                quickReplies = ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel']; 
-            } else if (msg.includes('no')) {
-                newContext = null;
-                reply = "👋 Alright, have a great day! If you need anything, just say 'Hi'.";
-                quickReplies = null;
-                showFeedback = true; // Show feedback immediately after the 'No' response
-            } else {
-                // If user enters a new question here, let the RAG take over.
-                return null;
-            }
-            
-            followUpContext = newContext;
-            return { reply, quickReplies, askFollowUp: false, showFeedback };
+        if (context !== 'finished-query') {
+            return null; 
         }
         
-        return null;
+        const isExactYes = lowerMsg === 'yes';
+        const isExactNo = lowerMsg === 'no';
+
+        let isNlpYes = false;
+        let isNlpNo = false;
+        
+        if (typeof nlp !== 'undefined') {
+            const doc = nlp(lowerMsg);
+            isNlpYes = doc.match('(yes|yeah|sure|yup|affirmative|i do|i want to)').found;
+            isNlpNo = doc.match('(no|nope|negative|nah|i do not)').found;
+        }
+        
+        const isYes = isExactYes || isNlpYes;
+        const isNo = isExactNo || isNlpNo;
+
+        if (isYes) {
+            state.followUpContext = null; 
+            clearBackendHistory(); 
+            return { 
+                reply: "Great! How can I help you with a new query? 👋", 
+                quickReplies: ['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel'], 
+                askFollowUp: false, 
+                showFeedback: false,
+                preventFollowUp: true
+            };
+        } 
+        
+        if (isNo) {
+            state.followUpContext = null; 
+            return { 
+                reply: "👍 I'm glad I could help. Thank you for using PAU InfoBot!", 
+                quickReplies: null, 
+                askFollowUp: false, 
+                showFeedback: false,
+                preventFollowUp: true
+            };
+        }
+        
+        console.log("Context lock bypassed. New query will be sent to RAG backend.");
+        state.followUpContext = null; 
+        return null; 
     }
 
-
-    // --- Main Send Message Loop ---
-
-    async function getBotResponse(message) {
+    function getBotResponse(message) {
         const raw = message.toLowerCase().trim();
-        const backendUrl = "http://localhost:8000/chat";
         
-        // 1. Check for context flow (Yes/No after a query)
-        const contextRes = handleContextFlow(raw, followUpContext);
+        const contextRes = handleContextFlow(raw, state.followUpContext); 
         if (contextRes) {
-            return contextRes;
+            return { isFast: true, data: contextRes }; 
         }
-
-        // 2. Check for simple small talk (Hi/Bye)
+        
         const small = handleSmallTalk(raw);
         if (small) {
-            followUpContext = null; // Clear context after small talk
-            return { reply: small.reply, quickReplies: small.quickReplies, askFollowUp: false, showFeedback: false };
+            state.followUpContext = null; 
+            return { isFast: true, data: small };
         }
         
-        // 3. Send query to the RAG backend
-        followUpContext = null; // Clear any pre-existing context
-        try {
-            const response = await fetch(backendUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json' 
-                },
-                body: JSON.stringify({ 
-                    query: message // Send the original, unnormalized message
-                })
-            });
-
-            if (!response.ok) {
-                // Check if the response is JSON, otherwise use the status text
-                const errorText = response.headers.get('content-type')?.includes('application/json') 
-                    ? (await response.json()).detail || response.statusText
-                    : response.statusText;
-                
-                throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
-            }
-
-            const data = await response.json();
-            
-            // RAG response flow
-            return {
-                reply: data.response,
-                quickReplies: null, 
-                askFollowUp: true, // This will trigger askFollowUpQuestion()
-                showFeedback: false // Feedback is shown *after* follow-up logic
-            };
-
-        } catch (error) {
-            console.error("RAG Backend Error:", error);
-            // Error response flow
-            return {
-                reply: "🚨 **Error connecting to the RAG backend.** Please ensure your Python server is running on `http://localhost:8000/chat` and try again.",
-                quickReplies: ['Admission', 'Fees', 'FAQ'],
-                askFollowUp: false,
-                showFeedback: true // Show feedback buttons after the error message
-            };
+        if (!backendUrl || backendUrl.includes("YOUR_RAG_BACKEND_URL_HERE")) {
+             return { isFast: true, data: smallTalk['error'] };
         }
+        
+        console.log(`Executing RAG query for: ${message.substring(0, 30)}...`);
+        
+        const ragPromise = (async () => {
+             try {
+                 const response = await fetch(backendUrl, {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({ message: message, session_id: sessionId })
+                 });
+
+                 if (!response.ok) {
+                     const errorText = response.headers.get('content-type')?.includes('application/json') 
+                         ? (await response.json()).detail || response.statusText
+                         : response.statusText;
+                     throw new Error(`HTTP error! Status: ${response.status} - ${errorText}`);
+                 }
+
+                 const data = await response.json();
+                 
+                 return {
+                     reply: data.response,
+                     quickReplies: null, 
+                     askFollowUp: true, 
+                     showFeedback: false,
+                     preventFollowUp: false 
+                 };
+
+             } catch (error) {
+                 console.error("RAG Backend Error:", error);
+                 throw smallTalk['error']; 
+             }
+        })();
+        
+        return { isFast: false, promise: ragPromise };
     }
 
     async function sendMessage() {
-        // Clear previous quick replies and feedback buttons
-        const existingFeedback = document.querySelector('.feedback-buttons');
-        if (existingFeedback) existingFeedback.remove();
-        const existingQuickReplies = document.querySelector('.quick-replies');
-        if (existingQuickReplies) existingQuickReplies.remove();
-        
         const msg = userInput.value.trim();
         if (!msg) {
             userInput.classList.add('error-shake');
@@ -350,44 +288,175 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        let displayMsg = msg;
-        // Use nlp if available to clean up user input display
-        if (typeof nlp !== 'undefined') {
-            displayMsg = nlp(msg).toTitleCase().out('text');
-        }
+        const responseObject = getBotResponse(msg);
         
+        resetChatState();
+
+        let displayMsg = msg;
+        if (typeof nlp !== 'undefined') {
+             displayMsg = nlp(msg).toTitleCase().out('text');
+        } else {
+             displayMsg = msg.charAt(0).toUpperCase() + msg.slice(1);
+        }
         addMessage(displayMsg, 'user');
+        
         userInput.value = '';
         userInput.focus();
 
-        showTypingIndicator();
-        await new Promise(r => setTimeout(r, getVariableDelay()));
-        hideTypingIndicator();
+        let finalResponse;
 
-        const response = await getBotResponse(msg);
-        
-        addMessage(response.reply, 'bot');
-        
-        // Show quick replies if provided (e.g., after 'Yes' or 'Hi')
-        if (response.quickReplies) {
-            addQuickReplies(response.quickReplies);
+        if (responseObject.isFast) {
+            finalResponse = responseObject.data;
+        } else {
+            showTypingIndicator();
+            await new Promise(r => setTimeout(r, getVariableDelay()));
+            
+            try {
+                finalResponse = await responseObject.promise;
+            } catch (errorData) {
+                finalResponse = errorData; 
+            } finally {
+                hideTypingIndicator();
+            }
         }
         
-        // --- Feedback and Follow-up Logic ---
+        // 4. Final Bot Response Display (Unchanged)
+        let formattedReply = finalResponse.reply; 
+        formattedReply = formattedReply.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        formattedReply = formattedReply.replace(/^- (.*)/gm, '<ul><li>$1</li></ul>');
+        formattedReply = formattedReply.replace(/### (.*)/g, '<h3>$1</h3>');
         
-        if (response.askFollowUp) {
-            // RAG call was successful, ask the Yes/No follow-up question
-            await askFollowUpQuestion();
-        } else if (response.showFeedback) {
-            // Show feedback immediately if the chat flow ended naturally (e.g., after 'No' or an error)
+        addMessage(formattedReply, 'bot');
+        
+        if (finalResponse.quickReplies) {
+            addQuickReplies(finalResponse.quickReplies);
+        }
+        
+        if (finalResponse.showFeedback) {
             addFeedbackButtons();
         }
+        
+        // 5. Trigger the follow-up loop
+        if (finalResponse.askFollowUp && !finalResponse.preventFollowUp) { 
+            await askForFeedbackAndFollowUp();
+        } 
     }
+
+    // ----------------------------------------------------
+    // 🌟 FIX: THEME TOGGLE LOGIC
+    // ----------------------------------------------------
+    // Targets the button with id="theme-toggle" (fixed in HTML)
+    const themeToggleBtn = document.getElementById('theme-toggle'); 
+    // Targets the main wrapper with id="chatbot-container"
+    const chatContainer = document.getElementById('chatbot-container'); 
     
-    // --- UPDATED GREETING FUNCTION ---
+    function applyTheme() {
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        
+        // Apply theme class to the container
+        if (currentTheme === 'dark') {
+            chatContainer.classList.add('dark-mode');
+            if (themeToggleBtn) themeToggleBtn.innerHTML = '☀️'; // Sun icon for light mode
+        } else {
+            chatContainer.classList.remove('dark-mode');
+            if (themeToggleBtn) themeToggleBtn.innerHTML = '🌙'; // Moon icon for dark mode
+        }
+        
+        // Apply a general class to the body if you want the area *outside* the bot to change
+        // document.body.classList.toggle('dark-mode-global', currentTheme === 'dark'); 
+    }
+
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+            const isDarkMode = chatContainer.classList.contains('dark-mode');
+            const newTheme = isDarkMode ? 'light' : 'dark'; // Toggle the theme
+            localStorage.setItem('theme', newTheme);
+            applyTheme();
+        });
+        // Apply theme on initial load
+        applyTheme(); 
+    }
+    // ----------------------------------------------------
+
+
+    // ----------------------------------------------------
+    // 🎤 FIX: MICROPHONE (SPEECH-TO-TEXT) LOGIC
+    // ----------------------------------------------------
+    // Targets the button with id="mic-btn" (fixed in HTML)
+    const micBtn = document.getElementById('mic-btn');
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition && micBtn) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false; 
+        recognition.interimResults = false; 
+        recognition.lang = 'en-US'; 
+        let isListening = false;
+
+        recognition.onstart = () => {
+            isListening = true;
+            micBtn.classList.add('listening'); 
+            userInput.placeholder = 'Speak now...';
+        };
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            userInput.value = transcript;
+            recognition.stop(); // Manually stop after result to ensure onend fires
+            // Note: sendMessage() is called implicitly when recognition.stop() triggers onend,
+            // but for robustness, let's call it here if we want instant sending:
+            resetChatState(); 
+            sendMessage();
+        };
+
+        recognition.onend = () => {
+            isListening = false;
+            micBtn.classList.remove('listening');
+            userInput.placeholder = 'Ask your question...';
+        };
+        
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            micBtn.classList.remove('listening');
+            isListening = false;
+            userInput.placeholder = 'Ask your question...';
+            if (event.error === 'not-allowed') {
+                 addMessage("🚨 Microphone access denied. Please grant permission in your browser settings.", 'bot');
+            }
+        };
+        
+        micBtn.addEventListener('click', () => {
+            if (isListening) {
+                recognition.stop();
+            } else {
+                userInput.value = ''; 
+                recognition.start();
+            }
+        });
+
+    } else if (micBtn) {
+         micBtn.style.display = 'none'; 
+         console.warn("Web Speech API not supported or micBtn not found.");
+    }
+    // ----------------------------------------------------
+
+
+    // --- Event Listeners and Initial Greeting ---
+    sendBtn.addEventListener('click', sendMessage);
+    userInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') sendMessage();
+    });
+    
+    // Initial greeting
+    showTypingIndicator();
+    setTimeout(() => {
+        hideTypingIndicator();
+        addMessage(getGreeting(), 'bot');
+        addQuickReplies(['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel']); 
+    }, getVariableDelay() + 500); 
+
     function getGreeting() {
         const hour = new Date().getHours();
-        
         let greeting;
         
         if (hour < 12) {
@@ -399,20 +468,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return `${greeting}! I'm the PAU InfoBot. How can I help you today? 👋`;
     }
-
-    // --- Event Listeners and Initial Greeting ---
-    sendBtn.addEventListener('click', sendMessage);
-    userInput.addEventListener('keydown', e => {
-        if (e.key === 'Enter') sendMessage();
-    });
-
-    setupVoiceInput();
-
-    // Start the conversation
-    showTypingIndicator();
-    setTimeout(() => {
-        hideTypingIndicator();
-        addMessage(getGreeting(), 'bot');
-        addQuickReplies(['Admission', 'Fees', 'FAQ', 'Ranking', 'Hostel']); 
-    }, getVariableDelay() + 500); 
 });
