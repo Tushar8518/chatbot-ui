@@ -1,13 +1,20 @@
 body {
     font-family: Arial, sans-serif;
-    background-color: #f4f4f9;
+    background-color: #f4f4f9; /* Light mode body background */
     margin: 0;
     padding: 0;
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
+    transition: background-color 0.3s; /* Smooth transition for body theme */
 }
+
+/* --- Global Dark Mode Body --- */
+.dark-mode-global { /* Use a separate class for the body if .chatbot-container is the only dark mode element */
+    background-color: #121212 !important; 
+}
+
 
 /* --- Chatbot Container --- */
 .chatbot-container {
@@ -25,8 +32,9 @@ body {
     transition: background-color 0.3s, border-color 0.3s;
 }
 
-/* --- Dark Mode Toggle --- */
-.dark-mode {
+/* --- Container Dark Mode --- */
+/* Note: The JS applies .dark-mode to the .chatbot-container */
+.chatbot-container.dark-mode {
     background-color: #2c2f33; /* Dark background */
     color: #e4e6eb; /* Light text */
     border-color: #4a4d50;
@@ -50,7 +58,7 @@ body {
     cursor: pointer;
     color: white;
 }
-.dark-mode .chat-header {
+.chatbot-container.dark-mode .chat-header {
     background-color: #8c72ff;
     border-bottom-color: #5d4a99;
 }
@@ -65,7 +73,7 @@ body {
     transition: background-color 0.3s;
 }
 
-.dark-mode #chat-body {
+.chatbot-container.dark-mode .chat-body {
     background-color: #36393f; 
 }
 
@@ -96,7 +104,7 @@ body {
     border-radius: 18px 18px 18px 4px;
 }
 
-.dark-mode .bot {
+.chatbot-container.dark-mode .bot {
     background-color: #4a4d50;
     color: #e4e6eb;
 }
@@ -112,7 +120,7 @@ body {
 .message a {
     color: #2196F3;
 }
-.dark-mode .message a {
+.chatbot-container.dark-mode .message a {
     color: #7289da;
 }
 
@@ -152,10 +160,10 @@ body {
     20% { opacity: 1; }
 }
 
-.dark-mode .typing-indicator {
+.chatbot-container.dark-mode .typing-indicator {
     background-color: #4a4d50;
 }
-.dark-mode .typing-indicator span {
+.chatbot-container.dark-mode .typing-indicator span {
     background-color: #e4e6eb;
 }
 
@@ -170,7 +178,7 @@ body {
     transition: background-color 0.3s, border-top-color 0.3s;
 }
 
-.dark-mode .chat-footer {
+.chatbot-container.dark-mode .chat-footer {
     background-color: #23272a;
     border-top-color: #4a4d50;
 }
@@ -184,41 +192,67 @@ body {
     transition: border-color 0.3s;
 }
 
-.dark-mode #user-input {
+.chatbot-container.dark-mode #user-input {
     background-color: #4a4d50;
     color: white;
     border-color: #5d4a99;
 }
 
-#send-btn {
+#send-btn, #mic-btn { /* Style both the send and mic buttons together */
     padding: 10px 15px;
-    background-color: #4CAF50;
-    color: white;
     border: none;
     border-radius: 20px;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, color 0.2s;
+    font-size: 1em; /* Ensure consistent font size */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#send-btn {
+    background-color: #4CAF50;
+    color: white;
 }
 
 #send-btn:hover {
     background-color: #3e8e41;
 }
 
-.dark-mode #send-btn {
+.chatbot-container.dark-mode #send-btn {
     background-color: #8c72ff;
 }
-.dark-mode #send-btn:hover {
+.chatbot-container.dark-mode #send-btn:hover {
     background-color: #5d4a99;
 }
 
-/* Mic button added by script */
+/* Mic button specific style (Default) */
 #mic-btn {
-    background-color: #ffe600; /* Default color set in JS, but defined here for consistency */
-    color: black;
+    background-color: #ffeb3b; /* A standard yellow/gold */
+    color: #333;
+    font-size: 1.2em; /* Bigger icon */
+    padding: 10px; /* Make it a square-ish button */
 }
-.dark-mode #mic-btn {
+
+/* 🎤 CRITICAL FIX: Mic Listening State */
+#mic-btn.listening {
+    background-color: #F44336; /* Red when recording */
+    color: white;
+    animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+    0% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(244, 67, 54, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+}
+
+.chatbot-container.dark-mode #mic-btn {
     background-color: #d1b54a;
-    color: black;
+    color: #1a1a1a;
+}
+.chatbot-container.dark-mode #mic-btn.listening {
+    background-color: #cc3333; /* Darker red */
 }
 
 
@@ -252,16 +286,16 @@ body {
     color: white;
 }
 
-.dark-mode .quick-replies {
+.chatbot-container.dark-mode .quick-replies {
     background-color: #23272a;
     border-top-color: #4a4d50;
 }
-.dark-mode .quick-replies button {
+.chatbot-container.dark-mode .quick-replies button {
     background-color: #36393f;
     border-color: #8c72ff;
     color: #8c72ff;
 }
-.dark-mode .quick-replies button:hover {
+.chatbot-container.dark-mode .quick-replies button:hover {
     background-color: #8c72ff;
     color: #23272a;
 }
@@ -292,12 +326,12 @@ body {
 .feedback-buttons .helpful-btn { color: #4CAF50; }
 .feedback-buttons .not-helpful-btn { color: #F44336; }
 
-.dark-mode .feedback-buttons button {
+.chatbot-container.dark-mode .feedback-buttons button {
     background: #36393f;
     border-color: #4a4d50;
     color: #e4e6eb;
 }
-.dark-mode .feedback-buttons button:hover {
+.chatbot-container.dark-mode .feedback-buttons button:hover {
     background: #4a4d50;
 }
 
