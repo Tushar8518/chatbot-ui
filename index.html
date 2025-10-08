@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PAU InfoBot</title>
-    <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/compromise@latest/builds/compromise.min.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <div id="chatbot-container" class="chatbot-container">
         <div class="chat-header">
             <h3>PAU InfoBot 🤖</h3>
-            <button id="mode-toggle">☀️</button>
+            <button id="theme-toggle">🌙</button> 
         </div>
 
         <div id="chat-body" class="chat-body" aria-live="polite">
@@ -20,10 +20,13 @@
 
         <div class="chat-footer">
             <input type="text" id="user-input" placeholder="Ask your question...">
+            
+            <button id="mic-btn">🎤</button>
+            
             <button id="send-btn">Send</button>
-            </div>
+        </div>
     </div>
 
-    <script type="module" src="script.js"></script>
+    <script src="script.js"></script> 
 </body>
 </html>
